@@ -13,4 +13,19 @@ Unfortunate, some out-of-the-box processes are indeed not smart enough.
 
 The tool described here provides a solution. The basic idea is that the localizable texts and their translations should be managed by an RDBMS so we can rationalize the translation. 
 
-We consider the example of iOS applications. 
+We consider the example of iOS applications. The text files are "Localizable.String" under the respective language/territory subfolders of an XCode projects, such as en.US, fr.FR, de.DE. Suppose we have gone thru the translation process described above, i.e. the text have been translated for one version, the script upload_localizable_strings.py will read in and merge all these files into a single .csv file which can be uploaded RDBMS.
+
+The target table (for the .csv file) is assumed to have this layout:
+
+
+	id number(20) not null
+	,app_id varchar2(20) not null
+	,lang varchar2(10) not null
+	,territory varchar2(10) 
+	,text_key  varchar2(100) not null
+	,text_localized varchar2(200) 
+	,text_comment  varchar2(1000) 
+	, constraint app_loc_string_pk_new primary key (id)
+	, constraint app_loc_string_uk1_new unique ( app_id, lang, text_key, territory)
+  
+  For one method to upload csv file into Oracle RDBMS, see ?
