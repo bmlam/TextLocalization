@@ -43,6 +43,46 @@ and other analytical purpose, but also for building up a vocabulary and phrase d
 5) convert the .csv file containing all translated items to iOS file set
 6) deploy the file set
 
+Example for json processing:
+json file has data:
+{
+    "maps": [
+        {
+            "id": "blabla",
+            "iscategorical": "0"
+        },
+        {
+            "id": "blabla",
+            "iscategorical": "0"
+        }
+    ],
+    "masks": {
+        "id": "valore"
+    },
+    "om_points": "value",
+    "parameters": {
+        "id": "valore"
+    }
+}
+
+Code:
+
+import json
+from pprint import pprint
+
+with open('data.json') as data_file:    
+    data = json.load(data_file)
+
+pprint(data) 
+
+# With data, find values like so (it is a dictionary, where the value may be a scalar, an array or again a dictionary ):
+# data is a dictionary
+# -> the key "maps" has an array of dictionary as value
+# -> -> since the first array element is again a dictionary, we can find a key "id" 
+
+data["maps"][0]["id"]
+data["masks"]["id"]
+data["om_points"]
 """
 
 import sys
