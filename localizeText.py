@@ -106,7 +106,9 @@ def debug(s):
 	if cmd_ln_options ['debug'] == True:
 		print("DBX:%s: %s" % (time.strftime('%X'), s) )
 def info(s):  print("*INFO* %s: %s" % (time.strftime('%X'), s) )
-def error(s):  sys.stderr.write("!! ERROR !! => %s\n" % s)
+def _errorExit(s):  
+	sys.stderr.write("!! ERROR !! => %s\n" % s); 
+	exit(2)
 
 def parseCmdLine() :
 
@@ -119,7 +121,7 @@ def parseCmdLine() :
 	parser.add_argument( '-c', '--connect_string', help='Oracle connect string' )
 	parser.add_argument( '-n', '--app_name')
 	parser.add_argument( '-o', '--ora_user')
-	parser.add_argument( '-O', '--output_file')
+	parser.add_argument( '-O', '--outputCsv')
 	parser.add_argument( '-t', '--target_table', default='M_APP_LOCALIZABLE_STRING' )
 	parser.add_argument( '-x', '--xcode_project_folder')
 	# long keywords only
@@ -131,17 +133,30 @@ def parseCmdLine() :
 		g_ConnectString=  result.connect_string
 	if result.ora_user != None: g_OraUser=  result.ora_user
 
+	action = result.action
+	if action == 'GenCsvFromAppStrings' :
+		if result.outputCsv == None:
+			_errorExit( "Parameter %s is required for %s" % ( 'outputCsv', action ) )
+	elif action == 'UploadCsvToDb' :
+		None
+	elif action == 'DownloadAppStringFromDb' :
+		None
+	elif action == 'TranslateViaGcloud' :
+		None
+	elif action == 'DeployCsvToAppFolder' :
+		None
+ 
 	return result
 
 #################################################################################
-def globLocalizableFileSet (p_file_tree):
+def globLocalizableFileSet ( appFolder ):
 	retval_files= []
 	retval_parent_folders= []
-	root_path_strlen= len(p_file_tree)
+	root_path_strlen= len(appFolder)
 	# deal with trailing path separator
-	if p_file_tree[-1] == os.path.sep: root_path_strlen-= 1
+	if appFolder[-1] == os.path.sep: root_path_strlen-= 1
 
-	for cur_root, sub_dirs, files in os.walk ( p_file_tree ):
+	for cur_root, sub_dirs, files in os.walk ( appFolder ):
 		for file_node in files:
 			# debug("file_node: %s" % file_node)
 			file_prefix, file_ext= os.path.splitext( file_node )
@@ -283,17 +298,51 @@ def convertCsvToIosFileTree ( jsonPath ):
 	return csvPath
 
 #################################################################################
+def grepRelevantSourceFiles ( appFolder ):
+	"""
+	"""
+	paths = []
+
+	for dirPath, subdirs, fileNodes in os.walk ( appFolder ):
+		for fileNode in fileNodes:
+			namePrefix, nameSuffix= os.path.splitext( fileNode )
+			# debug("nameSuffix: %s" % nameSuffix)
+			# list relevant fileNode extensions here 	
+			if nameSuffix in ( 'swift', 'm'):
+				debug("fileNode: %s" % fileNode)
+				debug("dirPath: %s" % dirPath)
+				retval_files.append( os.path.join(dirPath, fileNode) ) 
+	return paths
+
+#################################################################################
+def callGenstrings ( relevantFiles, tempDir ) :
+	"""
+	"""
+	cmdArgs = ['genstrings', '-o', tempDir, ] 
+	for srcFile in relevantFiles: cmdArgs.append( srcFile )
+
+	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
+	msgLines, errLines= proc.communicate( connectCommand )
+	if len( msgLines ) > 0 or len( errLines ) > 0 :
+		print( sys.stderr, ''.join( msgLines ) )
+		print( sys.stderr, ''.join( errLines  ) )
+
+		_errorExit( "Aborted due to previous errors" )
+
+	return 
+
+#################################################################################
 def actionGenCsvFromAppStrings( appFolderPath, outputFile , forAllLang = False ):
 	"""The encoding of the input file is currently hardcoded! Look for codecs
 This script select all the files named "Localizable.string" under the current file tree and perform the following operations
-	* Remember the folder name of the selected file - obviously the file only exists once in each folder.
-	* One of the string file is the master. By default it is under the en.lproj folder
-	* Assemble one record from several lines of the input file. Each record has this fields:
-		** Key
-		** Langulage which is derived from the containing folder
-		** Territory which is derived from the containing folder
-		** Localized version. For the master file, it is identical to the key
-		** Translator hints, but only for the master file
+* Remember the folder name of the selected file - obviously the file only exists once in each folder.
+* One of the string file is the master. By default it is under the en.lproj folder
+* Assemble one record from several lines of the input file. Each record has this fields:
+	** Key
+	** Langulage which is derived from the containing folder
+	** Territory which is derived from the containing folder
+	** Localized version. For the master file, it is identical to the key
+	** Translator hints, but only for the master file
 	
 All the records are output to a file. This file can be loaded into an RDBMS so we can see if there are translated text for the keys and how each key is translated.
 
@@ -303,7 +352,18 @@ If the Localizable.strings file is in utf-8 format, convert it to utf16 with BOM
 
 mv Localizable.strings Localizable.strings.org; iconv -f utf-8 -t UTF-16 Localizable.strings.org > Localizable.strings
 	"""
+
 	info("Concat target file is %s" % outputFile)
+
+	relevantFiles = globRelevantSourceFile( appFolder )
+	if relevantFiles.count == 0:
+		_errorExit( "No relevant source files found!" )
+
+	tempDir = tempfile.mkdtemp()
+	info( "Strings file will be found in %s" % tempDir )
+
+	callGenstrings( relevantFiles, tempDir )
+
 	out_fh = codecs.open( outputFile, "w", encoding='utf-16' )
 	for ix in range (len ( localizableFiles ) ):
 		source_path_complete= os.path.join(source_root, localizableFiles[ix] )
@@ -339,23 +399,13 @@ def actionDeployCsvToAppFolder ( allLangCsvPath, appFolderPath ):
 #################################################################################
 def main():
 	argObject= parseCmdLine()
-	
-	sel_files= ()
-	if argObject.action == 'generate_csv_from_ios':
-		actionGenCsvFromAppStrings( outputFile = argObject.outputFile )
+
+	if argObject.action == 'GenCsvFromAppStrings':
+			actionGenCsvFromAppStrings( outputFile = argObject.outputCsv )
 	else:
 		_errorExit( "Action %s is not yet implemented" % ( argObject.action ) )
 		
-	source_root= cmd_ln_options["source_dir"] 
-	# deal with trailing path separator
-	if source_root [-1] == os.path.sep: source_root= source_root[0: -1]
-	if cmd_ln_options["source_dir"] == None : 
-		print_help_and_exit()
-
-	info( "action: %s" %cmd_ln_options["action"] )
-	strings_file_folders, localizableFiles= globLocalizableFileSet( p_file_tree= source_root )
-		
-
+	info( "Program exited normally." )
 if __name__ == "__main__":
 	main()
 
