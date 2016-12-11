@@ -91,6 +91,7 @@ import getopt
 import os
 import re
 import shutil # to copy files
+import subprocess
 import sys
 import tempfile
 import time
@@ -118,25 +119,25 @@ def parseCmdLine() :
 	parser = argparse.ArgumentParser()
 	# lowercase shortkeys
 	parser.add_argument( '-a', '--action', help='which action applies', choices=['GenCsvFromAppStrings', 'UploadCsvToDb', 'DownloadAppStringFromDb', 'TranslateViaGcloud', 'DeployCsvToAppFolder' ], required= True)
-	parser.add_argument( '-c', '--connect_string', help='Oracle connect string' )
+	parser.add_argument( '-c', '--connectString', help='Oracle connect string' )
 	parser.add_argument( '-n', '--app_name')
 	parser.add_argument( '-o', '--ora_user')
 	parser.add_argument( '-O', '--outputCsv')
 	parser.add_argument( '-t', '--target_table', default='M_APP_LOCALIZABLE_STRING' )
-	parser.add_argument( '-x', '--xcode_project_folder')
+	parser.add_argument( '-x', '--xcodeProjectFolder')
 	# long keywords only
 
 	result= parser.parse_args()
 
 	# for (k, v) in vars( result ).iteritems () : print( "%s : %s" % (k, v) )
-	if result.connect_string != None: 
-		g_ConnectString=  result.connect_string
+	if result.connectString != None: 
+		g_ConnectString=  result.connectString
 	if result.ora_user != None: g_OraUser=  result.ora_user
 
 	action = result.action
 	if action == 'GenCsvFromAppStrings' :
-		if result.outputCsv == None:
-			_errorExit( "Parameter %s is required for %s" % ( 'outputCsv', action ) )
+		if result.outputCsv == None: _errorExit( "Parameter %s is required for %s" % ( 'outputCsv', action ) )
+		if result.xcodeProjectFolder == None: _errorExit( "Parameter %s is required for %s" % ( 'xcodeProjectFolder', action ) )
 	elif action == 'UploadCsvToDb' :
 		None
 	elif action == 'DownloadAppStringFromDb' :
@@ -322,7 +323,7 @@ def callGenstrings ( relevantFiles, tempDir ) :
 	for srcFile in relevantFiles: cmdArgs.append( srcFile )
 
 	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
-	msgLines, errLines= proc.communicate( connectCommand )
+	msgLines, errLines= proc.communicate( )
 	if len( msgLines ) > 0 or len( errLines ) > 0 :
 		print( sys.stderr, ''.join( msgLines ) )
 		print( sys.stderr, ''.join( errLines  ) )
@@ -355,7 +356,7 @@ mv Localizable.strings Localizable.strings.org; iconv -f utf-8 -t UTF-16 Localiz
 
 	info("Concat target file is %s" % outputFile)
 
-	relevantFiles = globRelevantSourceFile( appFolder )
+	relevantFiles = grepRelevantSourceFiles( appFolderPath )
 	if relevantFiles.count == 0:
 		_errorExit( "No relevant source files found!" )
 
@@ -401,7 +402,8 @@ def main():
 	argObject= parseCmdLine()
 
 	if argObject.action == 'GenCsvFromAppStrings':
-			actionGenCsvFromAppStrings( outputFile = argObject.outputCsv )
+			actionGenCsvFromAppStrings( appFolderPath = argObject.xcodeProjectFolder
+				, outputFile = argObject.outputCsv )
 	else:
 		_errorExit( "Action %s is not yet implemented" % ( argObject.action ) )
 		
