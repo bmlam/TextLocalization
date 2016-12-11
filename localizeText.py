@@ -95,20 +95,10 @@ import time
 import codecs # for reading files in Unicode 
 from sets import Set
 
-gc_action_generate_csv= "generate_csv_from_ios"
-
-g_actions = [
-	gc_action_generate_csv
-	];
-
 cmd_ln_options= {}
-cmd_ln_options ['action']= gc_action_generate_csv  # mandatory option
 cmd_ln_options ['source_dir']= None # mandatory 
 cmd_ln_options ['output_file']= '/tmp/all_localizable_strings.txt' 
 cmd_ln_options ['debug']= True
-
-g_short_args='a:o:'
-g_long_args=['action=', 'output_file=']
 
 def debug(s):
 	if cmd_ln_options ['debug'] == True:
@@ -123,7 +113,7 @@ def parseCmdLine() :
 
 	parser = argparse.ArgumentParser()
 	# lowercase shortkeys
-	parser.add_argument( '-a', '--action', help='which action applies', choices=['generate_csv_from_ios', 'upload_to_db' ], required= True)
+	parser.add_argument( '-a', '--action', help='which action applies', choices=['IosLocalizableFileSetToCsv', 'UploadCsvToDb', 'DownloadAppTranslatedItemsFromDb', 'TranslateViaGcloud', 'DeployCsvToAppFolder' ], required= True)
 	parser.add_argument( '-c', '--connect_string', help='Oracle connect string' )
 	parser.add_argument( '-n', '--app_name')
 	parser.add_argument( '-o', '--ora_user')
