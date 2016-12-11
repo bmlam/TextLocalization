@@ -10,7 +10,7 @@ line command which produces a master string file. This master file can be reform
 so it can be imported into an RDBMS table. It may also be reformatted for submission to an online
 translation API service such as gcloud Translation API. 
 
-Action "IosLocalizableFileSetToCsv" converts each item from the file tree into a .csv record. 
+Action "GenCsvFromAppStrings" converts each item from the file tree into a .csv record. 
 If the option "for_all_langs" is set, the localizable.string from all the
 language subfolders are included in the .csv. This is useful to upload items which may have been
 translated manually.
@@ -26,7 +26,7 @@ In the case of gcloud, the json output from the API will be either:
 2. optionally, reformatted to the zh.CN/localizable.strings, de.DE/localizable.strings directly. 
 To reduce coding effort initially, we implement only gcloud.json to .csv conversion.
 
-Action "DownloadAppTranslatedItemsFromDb" exports items of master and all target languages 
+Action "DownloadAppStringFromDb" exports items of master and all target languages 
 into a .csv file.
 
 Action "CsvToIosFileSet" converts items to a file set as expected by XCode.
@@ -85,14 +85,16 @@ data["masks"]["id"]
 data["om_points"]
 """
 
-import sys
+import argparse
+import codecs # for reading files in Unicode 
 import getopt
 import os
 import re
 import shutil # to copy files
+import sys
 import tempfile
 import time
-import codecs # for reading files in Unicode 
+
 from sets import Set
 
 cmd_ln_options= {}
@@ -113,7 +115,7 @@ def parseCmdLine() :
 
 	parser = argparse.ArgumentParser()
 	# lowercase shortkeys
-	parser.add_argument( '-a', '--action', help='which action applies', choices=['IosLocalizableFileSetToCsv', 'UploadCsvToDb', 'DownloadAppTranslatedItemsFromDb', 'TranslateViaGcloud', 'DeployCsvToAppFolder' ], required= True)
+	parser.add_argument( '-a', '--action', help='which action applies', choices=['GenCsvFromAppStrings', 'UploadCsvToDb', 'DownloadAppStringFromDb', 'TranslateViaGcloud', 'DeployCsvToAppFolder' ], required= True)
 	parser.add_argument( '-c', '--connect_string', help='Oracle connect string' )
 	parser.add_argument( '-n', '--app_name')
 	parser.add_argument( '-o', '--ora_user')
@@ -264,25 +266,25 @@ def testOracleConnect( oraUser, oraPassword, connectString ) :
 
 #################################################################################
 def convertCsvToGcloudJson ( masterCsvPath, targetLangs ):
-"""
-"""
+	"""
+	"""
 	return jsonPath
 
 #################################################################################
 def convertGcloudJsonOutputToCsv ( jsonPath ):
-"""
-"""
+	"""
+	"""
 	return csvPath
 
 #################################################################################
 def convertCsvToIosFileTree ( jsonPath ):
-"""
-"""
+	"""
+	"""
 	return csvPath
 
 #################################################################################
-def actionIosLocalizableFileSetToCsv( appFolderPath, forAllLang = False, outputFile  ):
-"""The encoding of the input file is currently hardcoded! Look for codecs
+def actionGenCsvFromAppStrings( appFolderPath, outputFile , forAllLang = False ):
+	"""The encoding of the input file is currently hardcoded! Look for codecs
 This script select all the files named "Localizable.string" under the current file tree and perform the following operations
 	* Remember the folder name of the selected file - obviously the file only exists once in each folder.
 	* One of the string file is the master. By default it is under the en.lproj folder
@@ -300,39 +302,39 @@ As keys are added or deleted, we simply merge (with delete option) the keys into
 If the Localizable.strings file is in utf-8 format, convert it to utf16 with BOM to make this python script happy by the following line commands:
 
 mv Localizable.strings Localizable.strings.org; iconv -f utf-8 -t UTF-16 Localizable.strings.org > Localizable.strings
-"""
-		info("Concat target file is %s" % outputFile)
-		out_fh = codecs.open( outputFile, "w", encoding='utf-16' )
-		for ix in range (len ( localizableFiles ) ):
-			source_path_complete= os.path.join(source_root, localizableFiles[ix] )
-			debug("source_path_complete: %s" % source_path_complete)
-			lang_code= getLangFromFolderName( strings_file_folders[ix] )
-			
-			# out_fh.write("\n... Content of file \"%s\"\n\n" % (source_path_complete) )
-			processIosLocalizableFile (p_source_file= source_path_complete, p_target_handle= out_fh, p_language= lang_code, p_territory=None, p_is_master=1)
-			# appendTextFileToFileHandle (p_source_file=source_path_complete , p_target_handle= out_fh)
-		out_fh.close()
+	"""
+	info("Concat target file is %s" % outputFile)
+	out_fh = codecs.open( outputFile, "w", encoding='utf-16' )
+	for ix in range (len ( localizableFiles ) ):
+		source_path_complete= os.path.join(source_root, localizableFiles[ix] )
+		debug("source_path_complete: %s" % source_path_complete)
+		lang_code= getLangFromFolderName( strings_file_folders[ix] )
+		
+		# out_fh.write("\n... Content of file \"%s\"\n\n" % (source_path_complete) )
+		processIosLocalizableFile (p_source_file= source_path_complete, p_target_handle= out_fh, p_language= lang_code, p_territory=None, p_is_master=1)
+		# appendTextFileToFileHandle (p_source_file=source_path_complete , p_target_handle= out_fh)
+	out_fh.close()
 
 #################################################################################
 def actionUploadCsvToDb ( csvPath, targetSchema, targetTable ):
-"""
-"""
+	"""
+	"""
 
 #################################################################################
-def actionDownloadAppTranslatedItemsFromDb ( appKey, forAllLangs = False ):
-"""
-"""
+def actionDownloadAppStringFromDb ( appKey, forAllLangs = True ):
+	"""
+	"""
 	return csvPath
 
 #################################################################################
 def actionTranslateViaGcloud ( masterCsvPath, targetLangs ):
-"""
-"""
+	"""
+	"""
 
 #################################################################################
 def actionDeployCsvToAppFolder ( allLangCsvPath, appFolderPath ):
-"""
-"""
+	"""
+	"""
 
 #################################################################################
 def main():
@@ -340,7 +342,7 @@ def main():
 	
 	sel_files= ()
 	if argObject.action == 'generate_csv_from_ios':
-		actionIosLocalizableFileSetToCsv( outputFile = argObject.outputFile )
+		actionGenCsvFromAppStrings( outputFile = argObject.outputFile )
 	else:
 		_errorExit( "Action %s is not yet implemented" % ( argObject.action ) )
 		
