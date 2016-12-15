@@ -88,6 +88,7 @@ data["om_points"]
 import argparse
 import codecs # for reading files in Unicode 
 import getopt
+import inspect
 import os
 import re
 import shutil # to copy files
@@ -98,16 +99,27 @@ import time
 
 from sets import Set
 
-g_defaultAppStringsFile= 'localizable.strings'
+g_defaultAppStringsFile= 'Localizable.strings'
 g_defaultGcloudRequestFile= 'translateRequest.json'
+g_dbxCnt = 0
+g_maxDbxMsg = 5000
 
-def debug(s):
-	if cmd_ln_options ['debug'] == True:
-		print("DBX:%s: %s" % (time.strftime('%X'), s) )
-def info(s):  print("*INFO* %s: %s" % (time.strftime('%X'), s) )
-def _errorExit(s):  
-	sys.stderr.write("!! ERROR !! => %s\n" % s); 
-	exit(2)
+def _dbx ( text ):
+	global g_dbxCnt
+	print( 'dbx: %s - Ln%d: %s' % ( inspect.stack()[1][3], inspect.stack()[1][2], text ) )
+	g_dbxCnt += 1
+	if g_dbxCnt > g_maxDbxMsg:
+		_errorExit( "g_maxDbxMsg of %d exceeded" % g_maxDbxMsg )
+
+def _infoTs ( text , withTs = False ):
+	if withTs :
+		print( '%s (Ln%d) %s' % ( time.strftime("%H:%M:%S"), inspect.stack()[1][2], text ) )
+	else :
+		print( '(Ln%d) %s' % ( inspect.stack()[1][2], text ) )
+
+def _errorExit ( text ):
+	print( 'ERROR raised from %s - Ln%d: %s' % ( inspect.stack()[1][3], inspect.stack()[1][2], text ) )
+	sys.exit(1)
 
 def parseCmdLine() :
 
@@ -239,7 +251,6 @@ def processIosLocalizableFile (p_source_file, p_target_handle, p_language, p_ter
 	fh= codecs.open( p_source_file, 'r', encoding='utf-16')
 	# fh= codecs.open( p_source_file, 'r', encoding='utf-8')
 	file_text= fh.read()
-	# debug("length of file text: %d" % file_text.__len__() )
 
 	# detect end_of_line style
 	found_dos_eol = file_text.find( '\r\n' );
@@ -248,7 +259,7 @@ def processIosLocalizableFile (p_source_file, p_target_handle, p_language, p_ter
 	else:
 		records= file_text.split(';\n');
 
-	debug("number of records: %d" % len( records ) )
+	_dbx("number of records: %d" % len( records ) )
 
 	for record in records:
 		record= record.replace('\n',';')
@@ -264,8 +275,39 @@ def processIosLocalizableFile (p_source_file, p_target_handle, p_language, p_ter
 				)# start of scalar which is actually a list
 			output_line= "<;>".join( my_array )
 			p_target_handle.write( "%s\n" %output_line )
-		#debug("encoding of line: %s" % type(line) )
+		#_dbx ("encoding of line: %s" % type(line) )
 		
+#################################################################################
+def parseAppStringsFile ( sourceFile ):
+	# 
+	# fixme: we should detect encoding automatically! 
+	fh= codecs.open( sourceFile, 'r', encoding='utf-16')
+	# fh= codecs.open( sourceFile, 'r', encoding='utf-8')
+	fileText= fh.read()
+
+	# detect end_of_line style
+	foundDosEol = fileText.find( '\r\n' );
+	if foundDosEol > 0:
+		records= fileText.split(';\r\n');
+	else:
+		records= fileText.split(';\n');
+
+	_dbx( "number of records: %d" % len( records ) )
+
+	# note that for the master localizable file, translation key and gui text are identical!
+	translationKeys = []
+	guiTexts = []
+	comments = []
+	for record in records:
+		record= record.replace('\n',';')
+		translationKey, guiText, comment= parseLocalizableItem( record )
+		if translationKey != None:
+			translationKeys.append( translationKey )
+			guiTexts.append( guiText )
+			comments.append( comment )
+	_dbx( "keys: %d" % len( translationKeys ) )
+
+	return translationKeys, guiTexts, comments
 
 #################################################################################
 def appendTextFileToFileHandle (p_source_file, p_target_handle):
@@ -311,11 +353,10 @@ def grepRelevantSourceFiles ( appFolder ):
 	for dirPath, subdirs, fileNodes in os.walk ( appFolder ):
 		for fileNode in fileNodes:
 			namePrefix, nameSuffix= os.path.splitext( fileNode )
-			# debug("nameSuffix: %s" % nameSuffix)
 			# list relevant fileNode extensions here 	
 			if nameSuffix in ( 'swift', 'm'):
-				debug("fileNode: %s" % fileNode)
-				debug("dirPath: %s" % dirPath)
+				_dbx( "fileNode: %s" % fileNode )
+				_dbx( "dirPath: %s" % dirPath )
 				retval_files.append( os.path.join(dirPath, fileNode) ) 
 	return paths
 
@@ -402,9 +443,11 @@ def actionDeployCsvToAppFolder ( allLangCsvPath, appFolderPath ):
 	"""
 
 #################################################################################
-def actionConvertAppStringsFileToJsonRequest ( appStringFile, jsonRequestFile ):
+def actionConvertAppStringsFileToJsonRequest ( appStringsFile, jsonRequestFile ):
 	"""
 	"""
+	parseAppStringsFile ( sourceFile = appStringsFile )
+
 	_errorExit( "got here" )
 
 #################################################################################
@@ -415,7 +458,7 @@ def main():
 		actionGenCsvFromAppStrings( appFolderPath = argObject.xcodeProjectFolder
 				, outputFile = argObject.outputCsv )
 	elif argObject.action == 'ConvertAppStringsFileToJsonRequest':
-		actionConvertAppStringsFileToJsonRequest( appStringFile = argObject.appStringsFile
+		actionConvertAppStringsFileToJsonRequest( appStringsFile = argObject.appStringsFile
 			, jsonRequestFile = argObject.jsonRequestFile )
 	else:
 		_errorExit( "Action %s is not yet implemented" % ( argObject.action ) )
