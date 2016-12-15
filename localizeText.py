@@ -98,10 +98,8 @@ import time
 
 from sets import Set
 
-cmd_ln_options= {}
-cmd_ln_options ['source_dir']= None # mandatory 
-cmd_ln_options ['output_file']= '/tmp/all_localizable_strings.txt' 
-cmd_ln_options ['debug']= True
+g_defaultAppStringsFile= 'localizable.strings'
+g_defaultGcloudRequestFile= 'translateRequest.json'
 
 def debug(s):
 	if cmd_ln_options ['debug'] == True:
@@ -118,29 +116,35 @@ def parseCmdLine() :
 
 	parser = argparse.ArgumentParser()
 	# lowercase shortkeys
-	parser.add_argument( '-a', '--action', help='which action applies', choices=['GenCsvFromAppStrings', 'UploadCsvToDb', 'DownloadAppStringFromDb', 'TranslateViaGcloud', 'DeployCsvToAppFolder' ], required= True)
+	parser.add_argument( '-a', '--action', help='which action applies'
+		, choices=[ 'ConvertAppStringsFileToJsonRequest', 'DeployCsvToAppFolder' , 'DownloadAppStringFromDb', 'GenCsvFromAppStrings', 'TranslateViaGcloud', 'UploadCsvToDb' ],
+ required= True)
 	parser.add_argument( '-c', '--connectString', help='Oracle connect string' )
-	parser.add_argument( '-n', '--app_name')
-	parser.add_argument( '-o', '--ora_user')
+	parser.add_argument( '-n', '--appName')
+	parser.add_argument( '-o', '--oraUser')
 	parser.add_argument( '-O', '--outputCsv')
-	parser.add_argument( '-t', '--target_table', default='M_APP_LOCALIZABLE_STRING' )
+	parser.add_argument( '-t', '--targetTable', default='M_APP_LOCALIZABLE_STRING' )
 	parser.add_argument( '-x', '--xcodeProjectFolder')
 	# long keywords only
+	parser.add_argument( '--appStringsFile', help= 'localizable strings file such as created by genstrings', default = g_defaultAppStringsFile )
+	parser.add_argument( '--jsonRequestFile', help= 'input/output json request file path, depending on action', default= g_defaultGcloudRequestFile )
 
 	result= parser.parse_args()
 
 	# for (k, v) in vars( result ).iteritems () : print( "%s : %s" % (k, v) )
 	if result.connectString != None: 
 		g_ConnectString=  result.connectString
-	if result.ora_user != None: g_OraUser=  result.ora_user
+	if result.oraUser != None: g_OraUser=  result.oraUser
 
 	action = result.action
-	if action == 'GenCsvFromAppStrings' :
+	if action == 'ConvertAppStringsFileToJsonRequest' :
+		if result.jsonRequestFile == None: _errorExit( "Parameter %s is required for %s" % ( 'jsonRequestFile', action ) )
+	elif action == 'DownloadAppStringFromDb' :
+		None
+	elif action == 'GenCsvFromAppStrings' :
 		if result.outputCsv == None: _errorExit( "Parameter %s is required for %s" % ( 'outputCsv', action ) )
 		if result.xcodeProjectFolder == None: _errorExit( "Parameter %s is required for %s" % ( 'xcodeProjectFolder', action ) )
 	elif action == 'UploadCsvToDb' :
-		None
-	elif action == 'DownloadAppStringFromDb' :
 		None
 	elif action == 'TranslateViaGcloud' :
 		None
@@ -398,12 +402,21 @@ def actionDeployCsvToAppFolder ( allLangCsvPath, appFolderPath ):
 	"""
 
 #################################################################################
+def actionConvertAppStringsFileToJsonRequest ( appStringFile, jsonRequestFile ):
+	"""
+	"""
+	_errorExit( "got here" )
+
+#################################################################################
 def main():
 	argObject= parseCmdLine()
 
 	if argObject.action == 'GenCsvFromAppStrings':
-			actionGenCsvFromAppStrings( appFolderPath = argObject.xcodeProjectFolder
+		actionGenCsvFromAppStrings( appFolderPath = argObject.xcodeProjectFolder
 				, outputFile = argObject.outputCsv )
+	elif argObject.action == 'ConvertAppStringsFileToJsonRequest':
+		actionConvertAppStringsFileToJsonRequest( appStringFile = argObject.appStringsFile
+			, jsonRequestFile = argObject.jsonRequestFile )
 	else:
 		_errorExit( "Action %s is not yet implemented" % ( argObject.action ) )
 		
