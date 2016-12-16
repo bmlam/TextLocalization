@@ -465,7 +465,6 @@ For a request file with these data:
 }
 
 We should get back:
-
 {
   "data": {
     "translations": [
@@ -481,26 +480,36 @@ We should get back:
 	"""
 
 	translationKeys, guiTexts, comments= parseAppStringsFile ( sourceFile = appStringsFile )
+
 	formattedList= []
-	for key in translationKeys[ 0:3 ] : #fixme slicing for test only
+	for key in translationKeys:
 		formattedList.append( "'q': '%s'" % escapeQuote( key ) )
 	qListAsText = ",\n".join( formattedList )
 
-	targetListAsText = ""
+	formattedList= []
+	for lang in targetLangs:
+		formattedList.append( "'target': '%s'" % lang )
+	targetListAsText = ",\n".join( formattedList )
 			
 	jsonText = """
 {leftScurly} 
-  {qListAsText},
-  {targetListAsText},
-  'format': 'text'
+  {qListAsText}
+  ,'source': {sourceLang}
+ ,{targetListAsText}
+  ,'format': 'text'
 {rightScurly}
 """.format( qListAsText= qListAsText
 	, targetListAsText= targetListAsText
 	, leftScurly= r"{"
 	, rightScurly= r"}"
+	, sourceLang= r"'en'"
 )
-	_dbx( jsonText )
-
+	# _dbx( jsonText )
+	
+	_dbx( "writing to '%s'.." % jsonRequestFile )
+	oFile = open( jsonRequestFile, 'w' )
+	oFile.write( jsonText )
+	oFile.close()
 
 #################################################################################
 def main():
