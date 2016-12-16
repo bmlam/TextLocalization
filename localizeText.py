@@ -1,5 +1,5 @@
 #!/usr/bin/python
-
+# coding=utf-8
 """
 This script is part of a concept for effectively managing text localization for iOS apps. 
 The basic idea is that the localizable texts and their translations should be managed by an RDBMS 
@@ -90,6 +90,7 @@ import codecs # for reading files in Unicode
 import getopt
 import inspect
 import os
+import pprint
 import re
 import shutil # to copy files
 import subprocess
@@ -101,8 +102,10 @@ from sets import Set
 
 g_defaultAppStringsFile= 'Localizable.strings'
 g_defaultGcloudRequestFile= 'translateRequest.json'
+g_defaultTargetLangs = ['de', 'fr', 'zh' ] 
 g_dbxCnt = 0
 g_maxDbxMsg = 5000
+
 
 def _dbx ( text ):
 	global g_dbxCnt
@@ -443,12 +446,61 @@ def actionDeployCsvToAppFolder ( allLangCsvPath, appFolderPath ):
 	"""
 
 #################################################################################
-def actionConvertAppStringsFileToJsonRequest ( appStringsFile, jsonRequestFile ):
+def escapeQuote ( text ):
 	"""
 	"""
-	parseAppStringsFile ( sourceFile = appStringsFile )
+	return text # fixme: dummy implementation for now!
 
-	_errorExit( "got here" )
+#################################################################################
+def actionConvertAppStringsFileToJsonRequest ( appStringsFile, targetLangs, jsonRequestFile ):
+	"""
+For a request file with these data:
+{
+  'q': 'Please wait until the current sound has stopped.',
+  'q': 'To save battery life, you cannot start another timer',
+  'source': 'en',
+  'target': 'zh',
+  'target': 'de',
+  'format': 'text'
+}
+
+We should get back:
+
+{
+  "data": {
+    "translations": [
+      {
+        "translatedText": "Bitte warten Sie, bis der aktuelle Sound gestoppt hat."
+      },
+      {
+        "translatedText": "Um die Batterie zu schonen, können Sie nicht einen anderen Timer starten"
+      }
+    ]
+  }
+}
+	"""
+
+	translationKeys, guiTexts, comments= parseAppStringsFile ( sourceFile = appStringsFile )
+	formattedList= []
+	for key in translationKeys[ 0:3 ] : #fixme slicing for test only
+		formattedList.append( "'q': '%s'" % escapeQuote( key ) )
+	qListAsText = ",\n".join( formattedList )
+
+	targetListAsText = ""
+			
+	jsonText = """
+{leftScurly} 
+  {qListAsText},
+  {targetListAsText},
+  'format': 'text'
+{rightScurly}
+""".format( qListAsText= qListAsText
+	, targetListAsText= targetListAsText
+	, leftScurly= r"{"
+	, rightScurly= r"}"
+)
+	_dbx( jsonText )
+
 
 #################################################################################
 def main():
@@ -459,11 +511,12 @@ def main():
 				, outputFile = argObject.outputCsv )
 	elif argObject.action == 'ConvertAppStringsFileToJsonRequest':
 		actionConvertAppStringsFileToJsonRequest( appStringsFile = argObject.appStringsFile
+			, targetLangs = g_defaultTargetLangs
 			, jsonRequestFile = argObject.jsonRequestFile )
 	else:
 		_errorExit( "Action %s is not yet implemented" % ( argObject.action ) )
 		
-	info( "Program exited normally." )
+	_infoTs( "Program exited normally.", withTs= True )
 if __name__ == "__main__":
 	main()
 
