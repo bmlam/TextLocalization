@@ -1,0 +1,5 @@
+curl -s -k -H 'Content-Type: application/json'  \
+     -H 'Authorization: Bearer ya29.El-3A1j1MC0YUhH3BtoN_acC01R6iVirCh5NHhBX2vhv6tFcgsstYDRQ_0d_joWJ4ykQenWxWyKUtqbPtlh2Tk-lamdNy6E43ddn0LX9-iIo93KI52MhfsUZrLlrifo8dQ' \
+     https://translation.googleapis.com/language/translate/v2 \
+     -d '@translateRequest.json'
+
