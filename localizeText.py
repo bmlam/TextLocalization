@@ -102,7 +102,8 @@ from sets import Set
 
 g_defaultAppStringsFile= 'Localizable.strings'
 g_defaultGcloudRequestFile= 'translateRequest.json'
-g_defaultTargetLangs = ['de', 'fr', 'zh' ] 
+# g_defaultTargetLangs = ['de', 'fr', 'zh' ] 
+g_defaultTargetLangs = ['de']
 g_dbxCnt = 0
 g_maxDbxMsg = 5000
 
@@ -244,8 +245,12 @@ def parseLocalizableItem (p_record):
 	return key_name, key_value, comment
 
 #################################################################################
-def quote (p_str):
-	return "\"%s\"" % (p_str)
+def singleQuote (text):
+	return "'%s'" % (text)
+
+#################################################################################
+def quote (text):
+	return "\"%s\"" % (text)
 
 #################################################################################
 def processIosLocalizableFile (p_source_file, p_target_handle, p_language, p_territory, p_is_master):
@@ -478,20 +483,20 @@ This method has 2 use cases:
 
 	for m in pat.finditer( text ) :
 		copyTill = m.start() # slicing operator will adjust by -1 automatically
-		# _dbx( copyFrom ) _dbx( copyTill )
 		formatters.append( m.group() )
-		if copyTill == -1 : # in case a formatter is at position 0
-			None
-		else:
-			newText += text [ copyFrom : copyTill ] 
+		# _dbx( copyFrom ) _dbx( copyTill )
+		newText += text [ copyFrom : copyTill ] 
+		#_dbx( newText )
+
 		newText += "{%d\}" % i
+		# _dbx( newText )
 		copyFrom = m.start() + len( m.group() ) # re-init for next pass
 		i += 1
 
 	if len( formatters ) == 0: # no formatter found, return the original key
 		newText = text
 	else: # take care trailing text after the last formatter
-		newText += text [ copyFrom-1 : ] # minus 1 is necessary!
+		newText += text [ copyFrom : ] 
 
 	# _dbx( text ); _dbx( newText )
 	return newText, formatters
@@ -538,14 +543,14 @@ We should get back:
 {leftScurly} 
   {qListAsText}
  ,'source': {sourceLang}
- ,'target:' {targetLang}
+ ,'target': {targetLang}
  ,'format': 'text'
 {rightScurly}
 """
 	# _dbx( jsonText )
 	for targetLang in targetLangs:
 		jsonText = jsonTemplate.format( qListAsText= qListAsText
-			, targetLang= targetLang
+			, targetLang= singleQuote( targetLang )
 			, leftScurly= r"{"
 			, rightScurly= r"}"
 			, sourceLang= r"'en'"
