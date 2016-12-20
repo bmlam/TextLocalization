@@ -449,10 +449,55 @@ def actionDeployCsvToAppFolder ( allLangCsvPath, appFolderPath ):
 def escapeQuote ( text ):
 	"""
 	"""
-	return text # fixme: dummy implementation for now!
+	return text
 
 #################################################################################
-def actionConvertAppStringsFileToJsonRequest ( appStringsFile, targetLangs, jsonRequestFile ):
+def parseKeyFromToGloud ( text ):
+	"""
+Parse the string a a localizable text key for formatter such as %d, %s.
+Each occurrence is replaced with {i\} where i is growing from 0 to N.
+At the same time, the formatters are recorded in an array which will be returned.
+E.g. for the key 
+	"Time is up in %d hours and %d minutes"
+the return value will be
+	"Time is up in {0\} hours and {1\} minutes" 
+
+This method has 2 use cases:
+1. before sending to gcloud, the formatters in the text key are replaced with
+  placeholders so that they come back unchanged at the hopefully appropiate positions.
+  In this use case, only the first return value - the converted string is used.
+2. after obtaining the translation from gcloud, this method is called with the original
+  text key for the array of formatters. The caller can then replace the gcloud placeholders
+  {i\} with the original formatters.
+	"""
+	pat = re.compile( "(%d|%s)" )
+	i = 0
+	formatters= []
+	copyFrom = 0
+	newText= ""
+
+	for m in pat.finditer( text ) :
+		copyTill = m.start() # slicing operator will adjust by -1 automatically
+		# _dbx( copyFrom ) _dbx( copyTill )
+		formatters.append( m.group() )
+		if copyTill == -1 : # in case a formatter is at position 0
+			None
+		else:
+			newText += text [ copyFrom : copyTill ] 
+		newText += "{%d\}" % i
+		copyFrom = m.start() + len( m.group() ) # re-init for next pass
+		i += 1
+
+	if len( formatters ) == 0: # no formatter found, return the original key
+		newText = text
+	else: # take care trailing text after the last formatter
+		newText += text [ copyFrom-1 : ] # minus 1 is necessary!
+
+	# _dbx( text ); _dbx( newText )
+	return newText, formatters
+
+#################################################################################
+def actionConvertAppStringsFileToJsonRequest ( appStringsFile, targetLangs, jsonRequestFilePrefix ):
 	"""
 For a request file with these data:
 {
@@ -483,33 +528,33 @@ We should get back:
 
 	formattedList= []
 	for key in translationKeys:
-		formattedList.append( "'q': '%s'" % escapeQuote( key ) )
+	# for key in translationKeys [0 : 2]: # fixme!
+		newKey, dummy = parseKeyFromToGloud ( key )
+		# _dbx( newKey )
+		formattedList.append( "'q': '%s'" % escapeQuote( newKey ) )
 	qListAsText = ",\n".join( formattedList )
 
-	formattedList= []
-	for lang in targetLangs:
-		formattedList.append( "'target': '%s'" % lang )
-	targetListAsText = ",\n".join( formattedList )
-			
-	jsonText = """
+	jsonTemplate = """
 {leftScurly} 
   {qListAsText}
-  ,'source': {sourceLang}
- ,{targetListAsText}
-  ,'format': 'text'
+ ,'source': {sourceLang}
+ ,'target:' {targetLang}
+ ,'format': 'text'
 {rightScurly}
-""".format( qListAsText= qListAsText
-	, targetListAsText= targetListAsText
-	, leftScurly= r"{"
-	, rightScurly= r"}"
-	, sourceLang= r"'en'"
-)
+"""
 	# _dbx( jsonText )
-	
-	_dbx( "writing to '%s'.." % jsonRequestFile )
-	oFile = open( jsonRequestFile, 'w' )
-	oFile.write( jsonText )
-	oFile.close()
+	for targetLang in targetLangs:
+		jsonText = jsonTemplate.format( qListAsText= qListAsText
+			, targetLang= targetLang
+			, leftScurly= r"{"
+			, rightScurly= r"}"
+			, sourceLang= r"'en'"
+		)
+		outputFile = jsonRequestFilePrefix + "." + targetLang
+		_dbx( "writing to '%s'.." % outputFile )
+		oFile = open( outputFile, 'w' )
+		oFile.write( jsonText )
+		oFile.close()
 
 #################################################################################
 def main():
@@ -521,7 +566,7 @@ def main():
 	elif argObject.action == 'ConvertAppStringsFileToJsonRequest':
 		actionConvertAppStringsFileToJsonRequest( appStringsFile = argObject.appStringsFile
 			, targetLangs = g_defaultTargetLangs
-			, jsonRequestFile = argObject.jsonRequestFile )
+			, jsonRequestFilePrefix = argObject.jsonRequestFile )
 	else:
 		_errorExit( "Action %s is not yet implemented" % ( argObject.action ) )
 		
