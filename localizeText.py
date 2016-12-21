@@ -376,8 +376,12 @@ but we wont validate it), call the gcloud translator, convert the output to iOS 
 and store in the given path. We store the gcloud output for debugging purpose.
 	"""
 	# loop over request files
+	for ix, requestFile in enumerate( requestFiles ):
 		# translate
+		gcloudOutputPath= gcloudOutputPaths[ix]
+		callGcloudTranslate ( requestFilePath= requestFile, outputFilePath= gcloudOutputPath ) 
 		# convert and store
+		_errorExit( "after callGcloudTranslate " )
 
 #################################################################################
 def callGcloudTranslate ( requestFilePath, outputFilePath ) :
@@ -404,19 +408,27 @@ request to gcloud and capture its output. Following output types are possible:
 		, '@%s' % requestFilePath
 		] 
 	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
-	msgLines, errLines= proc.communicate( connectCommand )
+	msgLines, errLines= proc.communicate()
 	if len( errLines ) > 0 :
+		print( sys.stderr, "*" * 80 )
 		print( sys.stderr, ''.join( errLines  ) )
 		errorText= "".join( errLines )
-		if errorText.find( "token" ):
+		if errorText.find( '"status": "UNAUTHENTICATED"' ):
 			_errorExit( "token error. FIXME: re-generate" )
 				
 		_errorExit( "due to previous error" )
 
-	if len( msgLines ) :
-		if os.path.exist( outputFilePath ):
-			_errorExit( "File '%s' already exists!" % outputFilePath )
-			
+	if len( msgLines ) > 0:
+		# gcloud apparently does not use stderr. so duplicate error text mining 
+		errorText= "".join( msgLines )
+		if errorText.find( '"status":"' ):
+			print( sys.stderr, "*" * 80 )
+			print( sys.stderr, ''.join( msgLines  ) )
+			if errorText.find( '"status": "UNAUTHENTICATED"' ):
+				_errorExit( "token error. FIXME: re-generate" )
+			_errorExit( "due to previous error" )
+
+		_dbx( "writing to '%s'" % outputFilePath )
 		outF = open( outputFilePath, "w" )
 		outF.write( "".join( msgLines ) )
 
@@ -629,6 +641,7 @@ We should get back:
 		iosFilePath =  os.path.join( stringsFileRoot, subdir, "Localizable.string" )
 		iosFilePaths.append( iosFilePath )
 
+	translateForLanguages( requestFiles= requestFilePaths, gcloudOutputPaths= gcloudOutputPaths, localizableStringsPaths = iosFilePaths ) 
 
 #################################################################################
 def main():
