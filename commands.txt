@@ -1,5 +1,7 @@
+#export GCLOUD_TOKEN=ya29.El-6A95WSjUcBzYSWTPkevplromvJDj0IJQ7jrkmxZgl9jxrpcgw5GwnyKgl7KDcIxuGynvdoJw5gqbaV_S85A9UNrTp-pmwECPpKEyY6bEwLe5OOxc1V_tduQYUVYuJ4A
+#export REQUEST_FILE=translateRequest.json.de
 curl -s -k -H 'Content-Type: application/json'  \
-     -H 'Authorization: Bearer ya29.El-3A1j1MC0YUhH3BtoN_acC01R6iVirCh5NHhBX2vhv6tFcgsstYDRQ_0d_joWJ4ykQenWxWyKUtqbPtlh2Tk-lamdNy6E43ddn0LX9-iIo93KI52MhfsUZrLlrifo8dQ' \
+     -H "Authorization: Bearer $GCLOUD_TOKEN" \
      https://translation.googleapis.com/language/translate/v2 \
-     -d '@translateRequest.json'
+     -d "@$REQUEST_FILE"
 

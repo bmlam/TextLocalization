@@ -17,9 +17,8 @@ translated manually.
 
 Action "UploadToDb" upserts the .csv entries into Oracle DB tables
 
-Action "TranslateViaGcloud" takes an .csv file which contains strings from the master language, 
-another .csv which contains the target languages, compose a json file to send to gcloud and 
-stores the translation output to another .csv file. 
+Action "TranslateViaGcloud" takes takes the master app strings file, generates json request files
+as many as needed, calls translator, converts the result to iOS format
 
 In the case of gcloud, the json output from the API will be either:
 1. transformed to a .csv with the translated items of all target languages.
@@ -100,6 +99,8 @@ import time
 
 from sets import Set
 
+g_authToken= 'bla_bla_token'
+
 g_defaultAppStringsFile= 'Localizable.strings'
 g_defaultGcloudRequestFile= 'translateRequest.json'
 # g_defaultTargetLangs = ['de', 'fr', 'zh' ] 
@@ -133,7 +134,7 @@ def parseCmdLine() :
 	parser = argparse.ArgumentParser()
 	# lowercase shortkeys
 	parser.add_argument( '-a', '--action', help='which action applies'
-		, choices=[ 'ConvertAppStringsFileToJsonRequest', 'DeployCsvToAppFolder' , 'DownloadAppStringFromDb', 'GenCsvFromAppStrings', 'TranslateViaGcloud', 'UploadCsvToDb' ],
+		, choices=[ 'DeployCsvToAppFolder' , 'DownloadAppStringFromDb', 'GenCsvFromAppStrings', 'TranslateViaGcloud', 'UploadCsvToDb' ],
  required= True)
 	parser.add_argument( '-c', '--connectString', help='Oracle connect string' )
 	parser.add_argument( '-n', '--appName')
@@ -153,7 +154,7 @@ def parseCmdLine() :
 	if result.oraUser != None: g_OraUser=  result.oraUser
 
 	action = result.action
-	if action == 'ConvertAppStringsFileToJsonRequest' :
+	if action == 'TranslateViaGcloud' :
 		if result.jsonRequestFile == None: _errorExit( "Parameter %s is required for %s" % ( 'jsonRequestFile', action ) )
 	elif action == 'DownloadAppStringFromDb' :
 		None
@@ -161,8 +162,6 @@ def parseCmdLine() :
 		if result.outputCsv == None: _errorExit( "Parameter %s is required for %s" % ( 'outputCsv', action ) )
 		if result.xcodeProjectFolder == None: _errorExit( "Parameter %s is required for %s" % ( 'xcodeProjectFolder', action ) )
 	elif action == 'UploadCsvToDb' :
-		None
-	elif action == 'TranslateViaGcloud' :
 		None
 	elif action == 'DeployCsvToAppFolder' :
 		None
@@ -369,6 +368,59 @@ def grepRelevantSourceFiles ( appFolder ):
 	return paths
 
 #################################################################################
+def translateForLanguages ( requestFiles, gcloudOutputPaths, localizableStringsPaths ) :
+	"""
+Given a list of json request files, gcloud output paths and paths of Localizable.strings
+(the path should be indicative of the target language e.g "de.DE/localizable.string"
+but we wont validate it), call the gcloud translator, convert the output to iOS format
+and store in the given path. We store the gcloud output for debugging purpose.
+	"""
+	# loop over request files
+		# translate
+		# convert and store
+
+#################################################################################
+def callGcloudTranslate ( requestFilePath, outputFilePath ) :
+	"""
+given a json request file and the path to the output file, call curl to submit the
+request to gcloud and capture its output. Following output types are possible:
+* everything ok, store the output text to file
+* the global auth-token is invalid, call another method to re-generate the token 
+  and abort with a hint to restart (the code would be so messy to restart if it 
+  were to restart automatically!)
+* something else went wrong, abort!
+	"""
+	global g_authToken
+
+	cmdArgs = ['curl'
+		, '-s'
+		, '-k'
+		, '-H'
+		, 'Content-Type: application/json'
+		, '-H'
+		, 'Authorization: Bearer %s' % g_authToken
+		, 'https://translation.googleapis.com/language/translate/v2'
+		, '-d'
+		, '@%s' % requestFilePath
+		] 
+	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
+	msgLines, errLines= proc.communicate( connectCommand )
+	if len( errLines ) > 0 :
+		print( sys.stderr, ''.join( errLines  ) )
+		errorText= "".join( errLines )
+		if errorText.find( "token" ):
+			_errorExit( "token error. FIXME: re-generate" )
+				
+		_errorExit( "due to previous error" )
+
+	if len( msgLines ) :
+		if os.path.exist( outputFilePath ):
+			_errorExit( "File '%s' already exists!" % outputFilePath )
+			
+		outF = open( outputFilePath, "w" )
+		outF.write( "".join( msgLines ) )
+
+#################################################################################
 def callGenstrings ( relevantFiles, tempDir ) :
 	"""
 	"""
@@ -440,10 +492,6 @@ def actionDownloadAppStringFromDb ( appKey, forAllLangs = True ):
 	"""
 	return csvPath
 
-#################################################################################
-def actionTranslateViaGcloud ( masterCsvPath, targetLangs ):
-	"""
-	"""
 
 #################################################################################
 def actionDeployCsvToAppFolder ( allLangCsvPath, appFolderPath ):
@@ -502,14 +550,13 @@ This method has 2 use cases:
 	return newText, formatters
 
 #################################################################################
-def actionConvertAppStringsFileToJsonRequest ( appStringsFile, targetLangs, jsonRequestFilePrefix ):
+def actionTranslateViaGcloud ( appStringsFile, targetLangs ):
 	"""
 For a request file with these data:
 {
   'q': 'Please wait until the current sound has stopped.',
   'q': 'To save battery life, you cannot start another timer',
   'source': 'en',
-  'target': 'zh',
   'target': 'de',
   'format': 'text'
 }
@@ -531,6 +578,9 @@ We should get back:
 
 	translationKeys, guiTexts, comments= parseAppStringsFile ( sourceFile = appStringsFile )
 
+	requestFolder= mktemp.mkdtemp()
+
+	_errorExt( requestFolder )
 	formattedList= []
 	for key in translationKeys:
 	# for key in translationKeys [0 : 2]: # fixme!
@@ -568,10 +618,9 @@ def main():
 	if argObject.action == 'GenCsvFromAppStrings':
 		actionGenCsvFromAppStrings( appFolderPath = argObject.xcodeProjectFolder
 				, outputFile = argObject.outputCsv )
-	elif argObject.action == 'ConvertAppStringsFileToJsonRequest':
-		actionConvertAppStringsFileToJsonRequest( appStringsFile = argObject.appStringsFile
-			, targetLangs = g_defaultTargetLangs
-			, jsonRequestFilePrefix = argObject.jsonRequestFile )
+	elif argObject.action == 'TranslateViaGcloud':
+		actionTranslateViaGcloud( appStringsFile = argObject.appStringsFile
+			, targetLangs = g_defaultTargetLangs )
 	else:
 		_errorExit( "Action %s is not yet implemented" % ( argObject.action ) )
 		
