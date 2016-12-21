@@ -575,12 +575,14 @@ We should get back:
   }
 }
 	"""
+	workFolder= tempfile.mkdtemp()
+	_infoTs( "workFolder: '%s'" % workFolder )
 
+	# 
+	# generate request files
+	# 
+	requestFilePaths = []
 	translationKeys, guiTexts, comments= parseAppStringsFile ( sourceFile = appStringsFile )
-
-	requestFolder= mktemp.mkdtemp()
-
-	_errorExt( requestFolder )
 	formattedList= []
 	for key in translationKeys:
 	# for key in translationKeys [0 : 2]: # fixme!
@@ -588,7 +590,6 @@ We should get back:
 		# _dbx( newKey )
 		formattedList.append( "'q': '%s'" % escapeQuote( newKey ) )
 	qListAsText = ",\n".join( formattedList )
-
 	jsonTemplate = """
 {leftScurly} 
   {qListAsText}
@@ -605,11 +606,29 @@ We should get back:
 			, rightScurly= r"}"
 			, sourceLang= r"'en'"
 		)
-		outputFile = jsonRequestFilePrefix + "." + targetLang
-		_dbx( "writing to '%s'.." % outputFile )
-		oFile = open( outputFile, 'w' )
+		requestFilePath =  os.path.join( workFolder, "translateRequest.json." + targetLang )
+		requestFilePaths.append( requestFilePath )
+		_dbx( "writing to '%s'.." % requestFilePath )
+		oFile = open( requestFilePath, 'w' )
 		oFile.write( jsonText )
 		oFile.close()
+
+	# compile transation result file paths
+	gcloudOutputPaths= []
+	for targetLang in targetLangs:
+		gcloudOutputPath =  os.path.join( workFolder, "translateRequest.json." + targetLang )
+		gcloudOutputPaths.append( gcloudOutputPath )
+
+	# compile iOS  strings file paths
+	stringsFileRoot= tempfile.mkdtemp()
+	_infoTs( "stringsFileRoot: '%s'" % stringsFileRoot )
+
+	iosFilePaths= []
+	for targetLang in targetLangs:
+		subdir= targetLang + '.' + targetLang.upper() # fixme: for now we simply assume country code = upper lang code
+		iosFilePath =  os.path.join( stringsFileRoot, subdir, "Localizable.string" )
+		iosFilePaths.append( iosFilePath )
+
 
 #################################################################################
 def main():
