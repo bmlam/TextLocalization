@@ -123,6 +123,9 @@ def _infoTs ( text , withTs = False ):
 	else :
 		print( '(Ln%d) %s' % ( inspect.stack()[1][2], text ) )
 
+def _printStdErr ( text ):
+		sys.stderr.write( text + "\n" )
+
 def _errorExit ( text ):
 	print( 'ERROR raised from %s - Ln%d: %s' % ( inspect.stack()[1][3], inspect.stack()[1][2], text ) )
 	sys.exit(1)
@@ -329,8 +332,8 @@ def testOracleConnect( oraUser, oraPassword, connectString ) :
 	proc= subprocess.Popen( ['sqlplus', '-s', '/nolog'] ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
 	msgLines, errLines= proc.communicate( connectCommand )
 	if len( msgLines ) > 0 or len( errLines ) > 0 :
-		print( sys.stderr, ''.join( msgLines ) )
-		print( sys.stderr, ''.join( errLines  ) )
+		_printStdErr( ''.join( msgLines ) )
+		_printStdErr( ''.join( errLines  ) )
 
 		_errorExit( "Oracle test connect on %s@%s failed! Check the credentials" % ( oraUser, connectString ) )      
 
@@ -397,8 +400,8 @@ request another auth-token and store it in the env var
 	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
 	msgLines, errLines= proc.communicate()
 	if len( errLines ) > 0 :
-		print( sys.stderr, "*" * 80 )
-		print( sys.stderr, ''.join( errLines  ) )
+		_printStdErr( "*" * 80 )
+		_printStdErr( ''.join( errLines  ) )
 		errorText= "".join( errLines )
 				
 		_errorExit( "due to previous error" )
@@ -440,22 +443,26 @@ request to gcloud and capture its output. Following output types are possible:
 	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
 	msgLines, errLines= proc.communicate()
 	if len( errLines ) > 0 :
-		print( sys.stderr, "*" * 80 )
-		print( sys.stderr, ''.join( errLines  ) )
+		_printStdErr( "*" * 80 )
+		_printStdErr( ''.join( errLines  ) )
 		errorText= "".join( errLines )
-		if errorText.find( '"status": "UNAUTHENTICATED"' ):
+		if errorText.find( '"status": "UNAUTHENTICATED"' ) >= 0:
 			_errorExit( "token error. FIXME: re-generate" )
 				
 		_errorExit( "due to previous error" )
 
 	if len( msgLines ) > 0:
 		# curl apparently does not use stderr. so duplicate error text mining 
-		errorText= "".join( msgLines )
-		if errorText.find( '"status":"' ):
-			print( sys.stderr, "*" * 80 )
-			print( sys.stderr, ''.join( msgLines  ) )
-			if errorText.find( '"status": "UNAUTHENTICATED"' ):
-				_errorExit( "token error. FIXME: re-generate" )
+		outputText= "".join( msgLines )
+		if outputText.find( '"status":"' ) >= 0:
+			_printStdErr( "*" * 80 )
+			_printStdErr( outputText )
+
+			if outputText.find( '"status": "UNAUTHENTICATED"' ) >= 0:
+				# _errorExit( "token error. FIXME: re-generate" )
+				acquireAndStoreGToken()
+				_errorExit( 'A gcloud token has been re-acquired. Please retry the current action' )
+
 			_errorExit( "due to previous error" )
 
 		_dbx( "writing to '%s'" % outputFilePath )
@@ -472,8 +479,8 @@ def callGenstrings ( relevantFiles, tempDir ) :
 	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
 	msgLines, errLines= proc.communicate( )
 	if len( msgLines ) > 0 or len( errLines ) > 0 :
-		print( sys.stderr, ''.join( msgLines ) )
-		print( sys.stderr, ''.join( errLines  ) )
+		_printStdErr( ''.join( msgLines ) )
+		_printStdErr( ''.join( errLines  ) )
 
 		_errorExit( "Aborted due to previous errors" )
 
@@ -626,8 +633,8 @@ We should get back:
 	requestFilePaths = []
 	translationKeys, guiTexts, comments= parseAppStringsFile ( sourceFile = appStringsFile )
 	formattedList= []
-	for key in translationKeys:
-	# for key in translationKeys [0 : 2]: # fixme!
+	# for key in translationKeys:
+	for key in translationKeys [0 : 9]: # fixme!
 		newKey, dummy = parseKeyFromToGloud ( key )
 		# _dbx( newKey )
 		formattedList.append( "'q': '%s'" % escapeQuote( newKey ) )
