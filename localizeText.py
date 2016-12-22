@@ -373,7 +373,7 @@ def grepRelevantSourceFiles ( appFolder ):
 	return paths
 
 #################################################################################
-def convertTranslationOutputToIosFormat ( targetLang, formatters, translationResultPath, iosFilePath ) :
+def convertTranslationOutputToIosFormat ( targetLang, translationKeys, comments, formattersList, translationResultPath, iosFilePath ) :
 	"""
 given a gcloud translation output file, which looks like this:
 
@@ -391,16 +391,58 @@ Note that we need to convert the placeholders {n\} back to its original %d or %s
 
 	inputFh= open(translationResultPath, 'r') 
 	jsonData= json.load( inputFh )
-	pprint.pprint( jsonData )
+	# pprint.pprint( jsonData )
 	dataRoot= jsonData["data"]
 	translations= dataRoot["translations"]
-	for d in translations:
+
+	iosRecords= []
+	placeholderPat = re.compile( r'{\d}' )
+	for ixText, d in enumerate( translations ):
+		iosRecord= {}
+		iosRecord['key']= translationKeys[ixText] 
+		iosRecord['comment']= comments[ixText] 
+		# 
 		text = d["translatedText"]
 		_dbx( text )
-		
+		parts= placeholderPat.split( text )
+		formatters= formattersList[ixText] 
+		if len( formatters ) != len( parts ) - 1 : # nature of split: delimiter is between 2 tokens
+			_infoTs( len( formatters ) )
+			_infoTs( len( parts ) )
+			_infoTs( "Text:\n%s" % text )
+			_infoTs( "Formatters:\n%s" % ",".join( formatters ) )
+			_errorExit( "Trouble: Number of formatters does not agree with text!" )
+		if len( formatters ) > 0:
+			_dbx( ','.join( formatters ) )
+			newText= ''
+			for ixPart, part in enumerate( parts ):
+				if ixPart < len( formatters ):
+					newText += part + formatters[ixPart] 
+				else:
+					newText += part 
+			iosRecord['text']= newText
+		else:
+			iosRecord['text']= text
+			
+		iosRecords.append( iosRecord )
+	# _dbx("*"*40 + "ios Records");	pprint.pprint( iosRecords )
+	lines= []
+	for rec in iosRecords:
+		lines.append( "/* %s */" % rec["comment"] )
+		lines.append( '"%s" = "%s";' % ( rec["key"], rec["text"] ) )
+
+	# mkdir conditionally
+	dir, basename= os.path.split( iosFilePath )
+	if not os.path.exists( dir ):
+		os.makedirs( dir )
+
+	_dbx( "Writing to ios File '%s'" % iosFilePath )
+	outputF= open( iosFilePath , "w" )
+	outputF.write( "".join( lines ) )
+	outputF.close()
 
 #################################################################################
-def translateForLanguages ( translationKeys, requestFiles, gcloudOutputPaths, localizableStringsPaths ) :
+def translateForLanguages ( translationKeys, comments, requestFiles, gcloudOutputPaths, localizableStringsPaths ) :
 	"""
 Given a list of json request files, gcloud output paths and paths of Localizable.strings
 (the path should be indicative of the target language e.g "de.DE/localizable.string"
@@ -421,17 +463,19 @@ and store in the given path. We store the gcloud output for debugging purpose.
 		dummyText, formatters = parseKeyFromToGloud ( key )
 		formattersList.append( formatters )
 		
-	for ix, outputFile in enumerate( gcloudOutputPath ):
+	for ix, outputFile in enumerate( gcloudOutputPaths ):
 		# we may use either global list variable to derive the lang code. 
 		# But what if for some reason, the order is not consistent?
-		fileName= gcloudOutputPath[ix]
 		formatters= formattersList[ix]
-		targetLang= fileName[-2:] # fixme: pray that lang code is always 2 in length
+		targetLang= outputFile[-2:] # fixme: pray that lang code is always 2 in length
 		_dbx( targetLang )
 		convertTranslationOutputToIosFormat ( targetLang= targetLang
-			, formatters= formatters
+			, formattersList= formattersList
 			, translationResultPath= gcloudOutputPaths[ix]
-			, iosFilePath= localizableStringsPaths[ix] )
+			, iosFilePath= localizableStringsPaths[ix] 
+			, translationKeys = translationKeys 
+			, comments = comments 
+			)
 
 #################################################################################
 def acquireAndStoreGToken():
@@ -500,7 +544,7 @@ request to gcloud and capture its output. Following output types are possible:
 	if len( msgLines ) > 0:
 		# curl apparently does not use stderr. so duplicate error text mining 
 		outputText= "".join( msgLines )
-		if outputText.find( r'"status":' ) >= 0 or outputText.find( u'"status":"' ) >= 0:
+		if outputText.find( '"status":' ) >= 0 :
 			_printStdErr( "*" * 80 )
 			_printStdErr( outputText )
 
@@ -724,7 +768,11 @@ We should get back:
 		iosFilePath =  os.path.join( stringsFileRoot, subdir, "Localizable.string" )
 		iosFilePaths.append( iosFilePath )
 
-	translateForLanguages( translationKeys= translationKeys, requestFiles= requestFilePaths, gcloudOutputPaths= gcloudOutputPaths, localizableStringsPaths = iosFilePaths ) 
+	translateForLanguages( translationKeys= translationKeys
+		, comments= comments
+		, requestFiles= requestFilePaths
+		, gcloudOutputPaths= gcloudOutputPaths
+		, localizableStringsPaths = iosFilePaths ) 
 
 #################################################################################
 def main():
