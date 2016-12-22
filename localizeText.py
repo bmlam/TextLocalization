@@ -88,6 +88,7 @@ import argparse
 import codecs # for reading files in Unicode 
 import getopt
 import inspect
+import json
 import os
 import pprint
 import re
@@ -372,7 +373,34 @@ def grepRelevantSourceFiles ( appFolder ):
 	return paths
 
 #################################################################################
-def translateForLanguages ( requestFiles, gcloudOutputPaths, localizableStringsPaths ) :
+def convertTranslationOutputToIosFormat ( targetLang, formatters, translationResultPath, iosFilePath ) :
+	"""
+given a gcloud translation output file, which looks like this:
+
+{ "data": {
+    "translations": [
+      { "translatedText": "{0} Jahr (e) {1} Monate (n) {2} ay (n)" },
+      { "translatedText": "abgebrochen bei" }
+    ]
+  }
+}
+
+convert it and store to the given iOS file path.
+Note that we need to convert the placeholders {n\} back to its original %d or %s and the like
+	"""
+
+	inputFh= open(translationResultPath, 'r') 
+	jsonData= json.load( inputFh )
+	pprint.pprint( jsonData )
+	dataRoot= jsonData["data"]
+	translations= dataRoot["translations"]
+	for d in translations:
+		text = d["translatedText"]
+		_dbx( text )
+		
+
+#################################################################################
+def translateForLanguages ( translationKeys, requestFiles, gcloudOutputPaths, localizableStringsPaths ) :
 	"""
 Given a list of json request files, gcloud output paths and paths of Localizable.strings
 (the path should be indicative of the target language e.g "de.DE/localizable.string"
@@ -385,7 +413,25 @@ and store in the given path. We store the gcloud output for debugging purpose.
 		gcloudOutputPath= gcloudOutputPaths[ix]
 		callGcloudTranslate ( requestFilePath= requestFile, outputFilePath= gcloudOutputPath ) 
 		# convert and store
-		_errorExit( "after callGcloudTranslate " )
+		
+	# compute the list of formatters per translation key. do it once for all languages since the keys 
+	# should always be the same. We also pray that gcloud returns the translated order in the same order!
+	formattersList = [] # each list element is again a list
+	for key in translationKeys:
+		dummyText, formatters = parseKeyFromToGloud ( key )
+		formattersList.append( formatters )
+		
+	for ix, outputFile in enumerate( gcloudOutputPath ):
+		# we may use either global list variable to derive the lang code. 
+		# But what if for some reason, the order is not consistent?
+		fileName= gcloudOutputPath[ix]
+		formatters= formattersList[ix]
+		targetLang= fileName[-2:] # fixme: pray that lang code is always 2 in length
+		_dbx( targetLang )
+		convertTranslationOutputToIosFormat ( targetLang= targetLang
+			, formatters= formatters
+			, translationResultPath= gcloudOutputPaths[ix]
+			, iosFilePath= localizableStringsPaths[ix] )
 
 #################################################################################
 def acquireAndStoreGToken():
@@ -454,7 +500,7 @@ request to gcloud and capture its output. Following output types are possible:
 	if len( msgLines ) > 0:
 		# curl apparently does not use stderr. so duplicate error text mining 
 		outputText= "".join( msgLines )
-		if outputText.find( '"status":"' ) >= 0:
+		if outputText.find( r'"status":' ) >= 0 or outputText.find( u'"status":"' ) >= 0:
 			_printStdErr( "*" * 80 )
 			_printStdErr( outputText )
 
@@ -655,7 +701,7 @@ We should get back:
 			, rightScurly= r"}"
 			, sourceLang= r"'en'"
 		)
-		requestFilePath =  os.path.join( workFolder, "translateRequest.json." + targetLang )
+		requestFilePath =  os.path.join( workFolder, "translationResult.json." + targetLang )
 		requestFilePaths.append( requestFilePath )
 		_dbx( "writing to '%s'.." % requestFilePath )
 		oFile = open( requestFilePath, 'w' )
@@ -678,7 +724,7 @@ We should get back:
 		iosFilePath =  os.path.join( stringsFileRoot, subdir, "Localizable.string" )
 		iosFilePaths.append( iosFilePath )
 
-	translateForLanguages( requestFiles= requestFilePaths, gcloudOutputPaths= gcloudOutputPaths, localizableStringsPaths = iosFilePaths ) 
+	translateForLanguages( translationKeys= translationKeys, requestFiles= requestFilePaths, gcloudOutputPaths= gcloudOutputPaths, localizableStringsPaths = iosFilePaths ) 
 
 #################################################################################
 def main():
