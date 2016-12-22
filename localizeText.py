@@ -99,7 +99,8 @@ import time
 
 from sets import Set
 
-g_authToken= 'bla_bla_token'
+g_authToken= None
+g_gTokenEnvVarName='GCLOUD_TOKEN'
 
 g_defaultAppStringsFile= 'Localizable.strings'
 g_defaultGcloudRequestFile= 'translateRequest.json'
@@ -384,6 +385,29 @@ and store in the given path. We store the gcloud output for debugging purpose.
 		_errorExit( "after callGcloudTranslate " )
 
 #################################################################################
+def acquireAndStoreGToken():
+	"""
+request another auth-token and store it in the env var
+	"""
+
+	cmdArgs = ['gcloud'
+		, 'auth'
+		, 'print-access-token'
+		] 
+	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
+	msgLines, errLines= proc.communicate()
+	if len( errLines ) > 0 :
+		print( sys.stderr, "*" * 80 )
+		print( sys.stderr, ''.join( errLines  ) )
+		errorText= "".join( errLines )
+				
+		_errorExit( "due to previous error" )
+
+	if len( msgLines ) > 0:
+		token= "".join( msgLines )
+		_infoTs( "Token requested. Run the next command and retry:\nexport %s=%s" % ( g_gTokenEnvVarName, token), True )
+
+#################################################################################
 def callGcloudTranslate ( requestFilePath, outputFilePath ) :
 	"""
 given a json request file and the path to the output file, call curl to submit the
@@ -395,6 +419,12 @@ request to gcloud and capture its output. Following output types are possible:
 * something else went wrong, abort!
 	"""
 	global g_authToken
+	if g_authToken == None:
+		if not g_gTokenEnvVarName in os.environ.keys():
+			acquireAndStoreGToken()
+			_errorExit( 'A gcloud token has been re-acquired. Please retry the current action' )
+		else:
+			g_authToken= os.environ[ g_gTokenEnvVarName ] 
 
 	cmdArgs = ['curl'
 		, '-s'
@@ -419,7 +449,7 @@ request to gcloud and capture its output. Following output types are possible:
 		_errorExit( "due to previous error" )
 
 	if len( msgLines ) > 0:
-		# gcloud apparently does not use stderr. so duplicate error text mining 
+		# curl apparently does not use stderr. so duplicate error text mining 
 		errorText= "".join( msgLines )
 		if errorText.find( '"status":"' ):
 			print( sys.stderr, "*" * 80 )
