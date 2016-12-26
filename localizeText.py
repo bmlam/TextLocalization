@@ -106,7 +106,7 @@ g_gTokenEnvVarName='GCLOUD_TOKEN'
 g_defaultAppStringsFile= 'Localizable.strings'
 g_defaultGcloudRequestFile= 'translateRequest.json'
 # g_defaultTargetLangs = ['de', 'fr', 'zh' ] 
-g_defaultTargetLangs = ['de']
+g_defaultTargetLangs = ['zh', 'it' ]
 g_dbxCnt = 0
 g_maxDbxMsg = 5000
 
@@ -437,7 +437,7 @@ Note that we need to convert the placeholders {n\} back to its original %d or %s
 		os.makedirs( dir )
 
 	_dbx( "Writing to ios File '%s'" % iosFilePath )
-	outputF= open( iosFilePath , "w" )
+	outputF= codecs.open( iosFilePath , "w" , encoding='utf-16' )
 	outputF.write( "".join( lines ) )
 	outputF.close()
 
