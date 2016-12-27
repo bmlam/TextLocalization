@@ -10,15 +10,24 @@ line command which produces a master string file. This master file can be reform
 so it can be imported into an RDBMS table. It may also be reformatted for submission to an online
 translation API service such as gcloud Translation API. 
 
-Action "GenCsvFromAppStrings" converts each item from the file tree into a .csv record. 
+To review: Action "GenCsvFromAppStrings" converts each item from the file tree into a .csv record. 
 If the option "for_all_langs" is set, the localizable.string from all the
 language subfolders are included in the .csv. This is useful to upload items which may have been
 translated manually.
 
 Action "UploadToDb" upserts the .csv entries into Oracle DB tables
 
-Action "TranslateViaGcloud" takes takes the master app strings file, generates json request files
+Action "TranslateViaGcloud" takes the master app strings file, generates json request files
 as many as needed, calls translator, converts the result to iOS format
+
+Action "LocalizeAppViaGcloud" builds on TranslateViaGclou and adds the following steps:
+	Pre-processing: takes as argument the path to the project folder, generates a fresh Localizable.strings
+	Post-processing: 
+		*converts the Localizable.strings files from UTF-16 to 8 so we can run "diff -u" on it (Apple seems to flavour UTF-16, although UTF-8 seems to work). For a quick tour we may generate UTF-8 from the beginning.
+		*builds a diff-report as output for review
+Action DeployCsvToAppFolder takes a tree path containing the localized strings files and overwrite the existing files.
+		
+Action "deploy" builds on TranslateViaGclou and adds the following steps:
 
 In the case of gcloud, the json output from the API will be either:
 1. transformed to a .csv with the translated items of all target languages.
@@ -40,7 +49,6 @@ compile the list of target languages the app is configured to support
 4) THIS STEP CAN BE SKIPPED INITIALLY: upload the stuff / download back to .csv ( the storage in the database is for deduplication
 and other analytical purpose, but also for building up a vocabulary and phrase database)
 5) convert the .csv file containing all translated items to iOS file set
-6) deploy the file set
 
 Example for json processing:
 json file has data:
