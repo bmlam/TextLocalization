@@ -96,6 +96,7 @@ data["om_points"]
 import argparse
 import codecs # for reading files in Unicode 
 import getopt
+import glob
 import inspect
 import json
 import os
@@ -793,8 +794,37 @@ def extractAppRelevantPaths ( projectFolder ):
 	"""
 	"""
 	masterStringsFile=None; sourceCodeFiles = []; localizableFolders= []; targetLangs = []
+
+	langSupportDirPattern= re.compile( "^[a-z]{2}.*\.lproj$" ) #fixme: how do we correctly match optional string such as in zh-Hans.lproj ?
+	for curRoot, dirs, files in os.walk ( projectFolder ):
+		for dir in dirs:
+			match= langSupportDirPattern.match( dir )
+			if match: 
+				lang= dir[0:2]
+				targetLangs.append( lang )
+				dirPath= os.path.join( curRoot, dir )
+				# _dbx( lang ); _dbx( dirPath )
+				localizableFolders.append( dirPath )
+		for file in files:
+			namePrefix, nameSuffix= os.path.splitext( file )
+			# list relevant file extensions here 	
+			if nameSuffix in ( 'swift', 'm'):
+				filePath= os.path.join( curRoot, file )
+				_dbx( "filePath: %s" % filePath )
+				sourceCodeFiles.append( os.path.join(dirPath, file) )
+			else:
+				dummy, pathTail= os.path.split( curRoot )
+				if pathTail == "Base.lproj" and file == "Localizable.strings":
+					masterStringsFile= os.path.join( curRoot, file )
+					_dbx( masterStringsFile )
+
 	return masterStringsFile, sourceCodeFiles, localizableFolders, targetLangs 
 
+
+#################################################################################
+def composeDiff ( oldPath, newFolders ):
+	"""
+	"""
 
 #################################################################################
 def reportDiff ( oldFolders, newFolders, outputDir ):
@@ -805,8 +835,28 @@ with matching target language may be sufficient
 	"""
 	oldFoldersHash= {}
 	newFoldersHash= {}
-	for langDir in oldFolders:
-		_dbx( langDir )
+	for path in newFolders:
+		pathTail= os.path.basename( path )
+		lang= pathTail[0:2]
+		newFoldersHash[lang]= path 
+	_dbx( len( newFoldersHash ) )
+	for path in oldFolders:
+		pathTail= os.path.basename( path )
+		lang= pathTail[0:2]
+		oldFoldersHash[lang]= path 
+	_dbx( len( oldFoldersHash ) )
+
+	for lang, oldPath in oldFoldersHash.iteritems():
+		_dbx( oldPath )
+		files= glob.glob( oldPath + "/*" )
+		#_dbx( ";".join( files ) )
+		if not lang in newFoldersHash.keys():
+			_infoTs( "The translation result does not seem to have a folder for language '%s'!" % lang )
+		else:
+			newPath= newFoldersHash[lang]
+			_dbx( newPath )
+			diffOutputLines= composeDiff( oldPath, newPath )
+
 #################################################################################
 def actionLocalizeAppViaGcloud ( projectFolder ):
 	"""
@@ -828,8 +878,8 @@ def actionLocalizeAppViaGcloud ( projectFolder ):
 
 	# post-processing
 	fakedResultFolders=  [ 
-		  'iosFiles/it.IT'
-		, 'iosFiles/zh.ZH'
+		  './iosFiles/it.IT'
+		, './iosFiles/zh.ZH'
 		] # files are already UTF-8 
 	diffReportFile= reportDiff( oldFolders= localizableFolders, newFolders= fakedResultFolders, outputDir= saveDir )
 	_infoTs( "Review diffReportFile '%s' before deplyoing: " %  diffReportFile)
