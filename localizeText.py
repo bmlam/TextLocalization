@@ -119,6 +119,7 @@ g_defaultTargetLangs = ['zh', 'it' ]
 g_dbxCnt = 0
 g_maxDbxMsg = 5000
 
+g_homeDir = os.environ["HOME"]
 
 def _dbx ( text ):
 	global g_dbxCnt
@@ -168,16 +169,18 @@ def parseCmdLine() :
 	if result.oraUser != None: g_OraUser=  result.oraUser
 
 	action = result.action
-	if action == 'TranslateViaGcloud' :
-		if result.jsonRequestFile == None: _errorExit( "Parameter %s is required for %s" % ( 'jsonRequestFile', action ) )
+	if False: # pseudo head of "switch" statement
+		None
 	elif action == 'DownloadAppStringFromDb' :
 		None
 	elif action == 'GenCsvFromAppStrings' :
 		if result.outputCsv == None: _errorExit( "Parameter %s is required for %s" % ( 'outputCsv', action ) )
 		if result.xcodeProjectFolder == None: _errorExit( "Parameter %s is required for %s" % ( 'xcodeProjectFolder', action ) )
+	elif action == 'LocalizeAppViaGcloud' :
+		if result.xcodeProjectFolder == None: _errorExit( "Parameter %s is required for %s" % ( 'xcodeProjectFolder', action ) )
+	elif action == 'TranslateViaGcloud' :
+		if result.jsonRequestFile == None: _errorExit( "Parameter %s is required for %s" % ( 'jsonRequestFile', action ) )
 	elif action == 'UploadCsvToDb' :
-		None
-	elif action == 'DeployCsvToAppFolder' :
 		None
  
 	return result
@@ -569,10 +572,10 @@ request to gcloud and capture its output. Following output types are possible:
 		outF.write( "".join( msgLines ) )
 
 #################################################################################
-def callGenstrings ( relevantFiles, tempDir ) :
+def callGenstrings ( relevantFiles, outputDir ) :
 	"""
 	"""
-	cmdArgs = ['genstrings', '-o', tempDir, ] 
+	cmdArgs = ['genstrings', '-o', outputDir, ] 
 	for srcFile in relevantFiles: cmdArgs.append( srcFile )
 
 	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
@@ -783,24 +786,62 @@ We should get back:
 		, gcloudOutputPaths= gcloudOutputPaths
 		, localizableStringsPaths = iosFilePaths ) 
 
+	return gcloudOutputPaths, iosFilePaths 
 
+#################################################################################
+def extractAppRelevantPaths ( projectFolder ):
+	"""
+	"""
+	masterStringsFile=None; sourceCodeFiles = []; localizableFolders= []; targetLangs = []
+	return masterStringsFile, sourceCodeFiles, localizableFolders, targetLangs 
+
+
+#################################################################################
+def reportDiff ( oldFolders, newFolders, outputDir ):
+	"""
+assuming the strings files in each directory are utf-8, call diff -u to compare and 
+pipe the output to one single output file. "diff -r -u" on each pair of old and new dir 
+with matching target language may be sufficient
+	"""
+	oldFoldersHash= {}
+	newFoldersHash= {}
+	for langDir in oldFolders:
+		_dbx( langDir )
 #################################################################################
 def actionLocalizeAppViaGcloud ( projectFolder ):
 	"""
 	"""
-	targetLangs, targetFolders= deriveTargetLangsAndFolderPaths( projectFolder )
-	masterStringsFile= gen # callGen something?
+	# pre-processing
+	targetMasterStringsFile, sourceCodeFiles, localizableFolders, targetLangs= extractAppRelevantPaths( projectFolder )
+	tempDir= tempfile.mkdtemp()
+	tempDirBaseName= os.path.basename( tempDir )
+	workRoot = os.path.join( g_homeDir, 'TextLocalization_TEMP_ROOT' )
+	if not os.path.exists( workRoot ): os.makedirs( workRoot )
+	saveDir= os.path.join( workRoot, tempDirBaseName )
+	_dbx( tempDir )
+	_dbx( saveDir )
+	os.rename( tempDir, saveDir )
+	tempMasterStringsFile= callGenstrings( relevantFiles= sourceCodeFiles, outputDir= saveDir )
+
+	if False:
+		gcloudOutputPaths, iosFilePaths= actionTranslateViaGcloud ( appStringsFile= tempMasterStringsFile, targetLangs= targetLangs )
+
+	# post-processing
+	fakedResultFolders=  [ 
+		  'iosFiles/it.IT'
+		, 'iosFiles/zh.ZH'
+		] # files are already UTF-8 
+	diffReportFile= reportDiff( oldFolders= localizableFolders, newFolders= fakedResultFolders, outputDir= saveDir )
+	_infoTs( "Review diffReportFile '%s' before deplyoing: " %  diffReportFile)
 
 #################################################################################
 def main():
 	argObject= parseCmdLine()
-
 	if argObject.action == 'GenCsvFromAppStrings':
 		actionGenCsvFromAppStrings( appFolderPath = argObject.xcodeProjectFolder
 				, outputFile = argObject.outputCsv )
 	elif argObject.action == 'LocalizeAppViaGcloud':
-		actionLocalizeAppViaGcloud( appStringsFile = argObject.appStringsFile
-			, targetLangs = g_defaultTargetLangs ) #fixme: derive langs from app folder structure!
+		actionLocalizeAppViaGcloud( projectFolder = argObject.xcodeProjectFolder )
 	elif argObject.action == 'TranslateViaGcloud':
 		actionTranslateViaGcloud( appStringsFile = argObject.appStringsFile
 			, targetLangs = g_defaultTargetLangs ) #fixme: derive langs from app folder structure!

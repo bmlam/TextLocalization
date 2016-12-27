@@ -5,3 +5,6 @@ curl -s -k -H 'Content-Type: application/json'  \
      https://translation.googleapis.com/language/translate/v2 \
      -d "@$REQUEST_FILE"
 
+
+./localizeText.py -a LocalizeAppViaGcloud -x /Users/bmlam/Dropbox/my-apps/TestShareSheet
+
