@@ -1,0 +1,33 @@
+{
+  "data": {
+    "translations": [
+      {
+        "translatedText": " ha finito!"
+      },
+      {
+        "translatedText": "interrotto a"
+      },
+      {
+        "translatedText": "Attivo"
+      },
+      {
+        "translatedText": "Timer attivi"
+      },
+      {
+        "translatedText": "suoni di avviso"
+      },
+      {
+        "translatedText": "suono di sottofondo"
+      },
+      {
+        "translatedText": "Annulla"
+      },
+      {
+        "translatedText": "Durata"
+      },
+      {
+        "translatedText": "trascorso a"
+      }
+    ]
+  }
+}

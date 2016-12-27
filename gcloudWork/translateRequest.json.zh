@@ -1,0 +1,33 @@
+{
+  "data": {
+    "translations": [
+      {
+        "translatedText": " 已经完成！"
+      },
+      {
+        "translatedText": "在中止"
+      },
+      {
+        "translatedText": "活性"
+      },
+      {
+        "translatedText": "活动的定时器"
+      },
+      {
+        "translatedText": "警报声"
+      },
+      {
+        "translatedText": "背景声音"
+      },
+      {
+        "translatedText": "取消"
+      },
+      {
+        "translatedText": "为期"
+      },
+      {
+        "translatedText": "在经过"
+      }
+    ]
+  }
+}

@@ -22,8 +22,9 @@ as many as needed, calls translator, converts the result to iOS format
 
 Action "LocalizeAppViaGcloud" builds on TranslateViaGclou and adds the following steps:
 	Pre-processing: takes as argument the path to the project folder, generates a fresh Localizable.strings
+	Call TranslateViaGcloud
 	Post-processing: 
-		*converts the Localizable.strings files from UTF-16 to 8 so we can run "diff -u" on it (Apple seems to flavour UTF-16, although UTF-8 seems to work). For a quick tour we may generate UTF-8 from the beginning.
+		*converts the Localizable.strings files from UTF-16 to 8 so we can run "diff -u" on it (Apple seems to flavour UTF-16, although UTF-8 seems to work). For a quick win we may generate UTF-8 from the beginning. Conversion to UTF-16 can be done later.
 		*builds a diff-report as output for review
 Action DeployCsvToAppFolder takes a tree path containing the localized strings files and overwrite the existing files.
 		
@@ -147,7 +148,7 @@ def parseCmdLine() :
 	parser = argparse.ArgumentParser()
 	# lowercase shortkeys
 	parser.add_argument( '-a', '--action', help='which action applies'
-		, choices=[ 'DeployCsvToAppFolder' , 'DownloadAppStringFromDb', 'GenCsvFromAppStrings', 'TranslateViaGcloud', 'UploadCsvToDb' ],
+		, choices=[ 'DeployCsvToAppFolder' , 'DownloadAppStringFromDb', 'GenCsvFromAppStrings', 'LocalizeAppViaGcloud' , 'TranslateViaGcloud', 'UploadCsvToDb' ],
  required= True)
 	parser.add_argument( '-c', '--connectString', help='Oracle connect string' )
 	parser.add_argument( '-n', '--appName')
@@ -782,6 +783,14 @@ We should get back:
 		, gcloudOutputPaths= gcloudOutputPaths
 		, localizableStringsPaths = iosFilePaths ) 
 
+
+#################################################################################
+def actionLocalizeAppViaGcloud ( projectFolder ):
+	"""
+	"""
+	targetLangs, targetFolders= deriveTargetLangsAndFolderPaths( projectFolder )
+	masterStringsFile= gen # callGen something?
+
 #################################################################################
 def main():
 	argObject= parseCmdLine()
@@ -789,9 +798,12 @@ def main():
 	if argObject.action == 'GenCsvFromAppStrings':
 		actionGenCsvFromAppStrings( appFolderPath = argObject.xcodeProjectFolder
 				, outputFile = argObject.outputCsv )
+	elif argObject.action == 'LocalizeAppViaGcloud':
+		actionLocalizeAppViaGcloud( appStringsFile = argObject.appStringsFile
+			, targetLangs = g_defaultTargetLangs ) #fixme: derive langs from app folder structure!
 	elif argObject.action == 'TranslateViaGcloud':
 		actionTranslateViaGcloud( appStringsFile = argObject.appStringsFile
-			, targetLangs = g_defaultTargetLangs )
+			, targetLangs = g_defaultTargetLangs ) #fixme: derive langs from app folder structure!
 	else:
 		_errorExit( "Action %s is not yet implemented" % ( argObject.action ) )
 		
