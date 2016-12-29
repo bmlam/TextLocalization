@@ -825,6 +825,16 @@ def extractAppRelevantPaths ( projectFolder ):
 def composeDiff ( oldPath, newFolders ):
 	"""
 	"""
+	cmdArgs = ['diff', '-u', '-r', oldPath, newFolders ] 
+
+	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
+	msgLines, errLines= proc.communicate( )
+	if len( errLines ) > 0 :
+		_printStdErr( ''.join( errLines  ) )
+
+		_errorExit( "Aborted due to previous errors" )
+
+	return msgLines
 
 #################################################################################
 def reportDiff ( oldFolders, newFolders, outputDir ):
@@ -835,6 +845,7 @@ with matching target language may be sufficient
 	"""
 	oldFoldersHash= {}
 	newFoldersHash= {}
+	# build dictionaries so we can pair by language code
 	for path in newFolders:
 		pathTail= os.path.basename( path )
 		lang= pathTail[0:2]
@@ -846,6 +857,11 @@ with matching target language may be sufficient
 		oldFoldersHash[lang]= path 
 	_dbx( len( oldFoldersHash ) )
 
+	outputPath= os.path.join( outputDir, 'diffOutput.txt' )
+	_dbx( outputPath )
+
+	diffLinesAll= []
+
 	for lang, oldPath in oldFoldersHash.iteritems():
 		_dbx( oldPath )
 		files= glob.glob( oldPath + "/*" )
@@ -855,7 +871,22 @@ with matching target language may be sufficient
 		else:
 			newPath= newFoldersHash[lang]
 			_dbx( newPath )
-			diffOutputLines= composeDiff( oldPath, newPath )
+			diffLines= composeDiff( oldPath, newPath )
+			# fixme: how do we merge two lists?
+			diffLinesAll.append( composeDiff( oldPath, newPath ) )
+
+	if len( diffLinesAll ) == 0:
+		_errorExit( "Apparently no folders exist to perform diff on" )
+
+	_infoTs( "Peeking first few lines of diff report:\n%s" % "".join( diffLinesAll[0:5] ) )
+
+	if os.path.exists( outputPath ):
+		_errorExit( "File '%s' already exists" % outputPath )
+	outputFh= open( outputPath, "w" )
+	outputFh.write( "".join( diffLinesAll ) )
+	outputFh.close()
+	
+	return outputPath	
 
 #################################################################################
 def actionLocalizeAppViaGcloud ( projectFolder ):
