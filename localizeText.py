@@ -187,30 +187,6 @@ def parseCmdLine() :
 	return result
 
 #################################################################################
-def globLocalizableFileSet ( appFolder ):
-	retval_files= []
-	retval_parent_folders= []
-	root_path_strlen= len(appFolder)
-	# deal with trailing path separator
-	if appFolder[-1] == os.path.sep: root_path_strlen-= 1
-
-	for cur_root, sub_dirs, files in os.walk ( appFolder ):
-		for file_node in files:
-			# debug("file_node: %s" % file_node)
-			file_prefix, file_ext= os.path.splitext( file_node )
-			# debug("file_ext: %s" % file_ext)
-			# list relevant file_node extensions here 	
-			# note that InfoPlist.strngs has another encoding than Localizable.strings! 
-			if file_ext in ( '.strings') and file_ext != '' and file_node != 'InfoPlist.strings' :
-				#debug("cur_root: %s" % cur_root)
-				retval_parent_folders.append( cur_root )
-				rel_path= cur_root[root_path_strlen+1: ] 
-				# return the "relative" source dir
-				retval_files.append( os.path.join(rel_path, file_node) ) 
-	return (retval_parent_folders, retval_files)
-
-
-#################################################################################
 def getLangFromFolderName (p_folder_name):
 	bn = os.path.basename(p_folder_name)
 	tokens= bn.split('.')
@@ -304,6 +280,7 @@ def processIosLocalizableFile (p_source_file, p_target_handle, p_language, p_ter
 		
 #################################################################################
 def parseAppStringsFile ( sourceFile ):
+	_dbx( sourceFile )
 	# 
 	# fixme: we should detect encoding automatically! 
 	fh= codecs.open( sourceFile, 'r', encoding='utf-16')
@@ -577,7 +554,9 @@ def callGenstrings ( relevantFiles, outputDir ) :
 	"""
 	"""
 	cmdArgs = ['genstrings', '-o', outputDir, ] 
+
 	for srcFile in relevantFiles: cmdArgs.append( srcFile )
+	_dbx( " ".join( cmdArgs ) )
 
 	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
 	msgLines, errLines= proc.communicate( )
@@ -587,7 +566,9 @@ def callGenstrings ( relevantFiles, outputDir ) :
 
 		_errorExit( "Aborted due to previous errors" )
 
-	return 
+	appMasterStringFile= os.path.join( outputDir, g_defaultAppStringsFile )
+	# _errorExit( "test exit" )
+	return appMasterStringFile
 
 #################################################################################
 def actionGenCsvFromAppStrings( appFolderPath, outputFile , forAllLang = False ):
@@ -702,7 +683,7 @@ This method has 2 use cases:
 	return newText, formatters
 
 #################################################################################
-def actionTranslateViaGcloud ( appStringsFile, targetLangs ):
+def actionTranslateViaGcloud ( appStringsFile, targetLangs, lProjDirNames ):
 	"""
 For a request file with these data:
 {
@@ -734,6 +715,7 @@ We should get back:
 	# generate request files
 	# 
 	requestFilePaths = []
+	_dbx( appStringsFile )
 	translationKeys, guiTexts, comments= parseAppStringsFile ( sourceFile = appStringsFile )
 	formattedList= []
 	# for key in translationKeys:
@@ -776,9 +758,9 @@ We should get back:
 	_infoTs( "stringsFileRoot: '%s'" % stringsFileRoot )
 
 	iosFilePaths= []
-	for targetLang in targetLangs:
-		subdir= targetLang + '.' + targetLang.upper() # fixme: for now we simply assume country code = upper lang code
-		iosFilePath =  os.path.join( stringsFileRoot, subdir, "Localizable.string" )
+	for targetLang in enumerate( targetLangs ):
+		subdir= lProjDirNames[i]
+		iosFilePath =  os.path.join( stringsFileRoot, subdir, g_defaultAppStringsFile )
 		iosFilePaths.append( iosFilePath )
 
 	translateForLanguages( translationKeys= translationKeys
@@ -807,14 +789,15 @@ def extractAppRelevantPaths ( projectFolder ):
 				localizableFolders.append( dirPath )
 		for file in files:
 			namePrefix, nameSuffix= os.path.splitext( file )
+			# _dbx( namePrefix ); _dbx( nameSuffix )
 			# list relevant file extensions here 	
-			if nameSuffix in ( 'swift', 'm'):
+			if nameSuffix in ( '.swift', '.m'):
 				filePath= os.path.join( curRoot, file )
 				_dbx( "filePath: %s" % filePath )
-				sourceCodeFiles.append( os.path.join(dirPath, file) )
+				sourceCodeFiles.append( os.path.join(curRoot, file) )
 			else:
 				dummy, pathTail= os.path.split( curRoot )
-				if pathTail == "Base.lproj" and file == "Localizable.strings":
+				if pathTail == "Base.lproj" and file == g_defaultAppStringsFile:
 					masterStringsFile= os.path.join( curRoot, file )
 					_dbx( masterStringsFile )
 
@@ -893,26 +876,32 @@ def actionLocalizeAppViaGcloud ( projectFolder ):
 	"""
 	"""
 	# pre-processing
-	targetMasterStringsFile, sourceCodeFiles, localizableFolders, targetLangs= extractAppRelevantPaths( projectFolder )
+	targetMasterStringsFile, sourceCodeFiles, lProjDirNames, targetLangs= extractAppRelevantPaths( projectFolder )
+	tempLProjDirNames= []
+	for dirName in lProjDirNames:
+		tempLProjDirNames.append( os.path.basename( dirName ) )
+		
 	tempDir= tempfile.mkdtemp()
 	tempDirBaseName= os.path.basename( tempDir )
 	workRoot = os.path.join( g_homeDir, 'TextLocalization_TEMP_ROOT' )
 	if not os.path.exists( workRoot ): os.makedirs( workRoot )
 	saveDir= os.path.join( workRoot, tempDirBaseName )
+	_dbx( "; ".join( sourceCodeFiles ) )
 	_dbx( tempDir )
 	_dbx( saveDir )
 	os.rename( tempDir, saveDir )
 	tempMasterStringsFile= callGenstrings( relevantFiles= sourceCodeFiles, outputDir= saveDir )
+	_dbx( tempMasterStringsFile )
 
-	if False:
-		gcloudOutputPaths, iosFilePaths= actionTranslateViaGcloud ( appStringsFile= tempMasterStringsFile, targetLangs= targetLangs )
+	gcloudOutputPaths, iosFilePaths= actionTranslateViaGcloud ( appStringsFile= tempMasterStringsFile, targetLangs= targetLangs, lProjDirNames= tempLProjDirNames )
 
 	# post-processing
 	fakedResultFolders=  [ 
 		  './iosFiles/it.IT'
 		, './iosFiles/zh.ZH'
 		] # files are already UTF-8 
-	diffReportFile= reportDiff( oldFolders= localizableFolders, newFolders= fakedResultFolders, outputDir= saveDir )
+
+	diffReportFile= reportDiff( oldFolders= lProjDirNames, newFolders= iosFilePaths, outputDir= saveDir )
 	_infoTs( "Review diffReportFile '%s' before deplyoing: " %  diffReportFile)
 
 #################################################################################
