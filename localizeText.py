@@ -393,7 +393,7 @@ Note that we need to convert the placeholders {n\} back to its original %d or %s
 		iosRecord['comment']= comments[ixText] 
 		# 
 		text = d["translatedText"]
-		_dbx( text )
+		# _dbx( text )
 		parts= placeholderPat.split( text )
 		formatters= formattersList[ixText] 
 		if len( formatters ) != len( parts ) - 1 : # nature of split: delimiter is between 2 tokens
@@ -403,7 +403,7 @@ Note that we need to convert the placeholders {n\} back to its original %d or %s
 			_infoTs( "Formatters:\n%s" % ",".join( formatters ) )
 			_errorExit( "Trouble: Number of formatters does not agree with text!" )
 		if len( formatters ) > 0:
-			_dbx( ','.join( formatters ) )
+			# _dbx( ','.join( formatters ) )
 			newText= ''
 			for ixPart, part in enumerate( parts ):
 				if ixPart < len( formatters ):
@@ -420,6 +420,7 @@ Note that we need to convert the placeholders {n\} back to its original %d or %s
 	for rec in iosRecords:
 		lines.append( "/* %s */" % rec["comment"] )
 		lines.append( '"%s" = "%s";' % ( rec["key"], rec["text"] ) )
+		lines.append( '\n' )
 
 	# mkdir conditionally
 	dir, basename= os.path.split( iosFilePath )
@@ -427,8 +428,8 @@ Note that we need to convert the placeholders {n\} back to its original %d or %s
 		os.makedirs( dir )
 
 	_dbx( "Writing to ios File '%s'" % iosFilePath )
-	outputF= codecs.open( iosFilePath , "w" , encoding='utf-16' )
-	outputF.write( "".join( lines ) )
+	outputF= codecs.open( iosFilePath , "w" , encoding='utf-8' )
+	outputF.write( "\n".join( lines ) )
 	outputF.close()
 
 #################################################################################
@@ -567,7 +568,6 @@ def callGenstrings ( relevantFiles, outputDir ) :
 		_errorExit( "Aborted due to previous errors" )
 
 	appMasterStringFile= os.path.join( outputDir, g_defaultAppStringsFile )
-	# _errorExit( "test exit" )
 	return appMasterStringFile
 
 #################################################################################
@@ -758,7 +758,7 @@ We should get back:
 	_infoTs( "stringsFileRoot: '%s'" % stringsFileRoot )
 
 	iosFilePaths= []
-	for targetLang in enumerate( targetLangs ):
+	for i, targetLang in enumerate( targetLangs ):
 		subdir= lProjDirNames[i]
 		iosFilePath =  os.path.join( stringsFileRoot, subdir, g_defaultAppStringsFile )
 		iosFilePaths.append( iosFilePath )
@@ -812,11 +812,17 @@ def composeDiff ( oldPath, newFolders ):
 
 	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
 	msgLines, errLines= proc.communicate( )
+	# _dbx( type( msgLines ) );  _dbx( len( msgLines ) )
 	if len( errLines ) > 0 :
 		_printStdErr( ''.join( errLines  ) )
 
 		_errorExit( "Aborted due to previous errors" )
 
+	if type( msgLines ) is str: # fixme: not sure why subprocess.communicate would returns str
+		newLines = []
+		newLines.append( msgLines )
+		msgLines= newLines
+		# _dbx( type( msgLines ) );  _dbx( len( msgLines ) )
 	return msgLines
 
 #################################################################################
@@ -826,6 +832,9 @@ assuming the strings files in each directory are utf-8, call diff -u to compare 
 pipe the output to one single output file. "diff -r -u" on each pair of old and new dir 
 with matching target language may be sufficient
 	"""
+	_dbx( "; ".join( oldFolders ) )
+	_dbx( "; ".join( newFolders ) )
+
 	oldFoldersHash= {}
 	newFoldersHash= {}
 	# build dictionaries so we can pair by language code
@@ -846,21 +855,22 @@ with matching target language may be sufficient
 	diffLinesAll= []
 
 	for lang, oldPath in oldFoldersHash.iteritems():
-		_dbx( oldPath )
+		# _dbx( oldPath )
 		files= glob.glob( oldPath + "/*" )
 		#_dbx( ";".join( files ) )
 		if not lang in newFoldersHash.keys():
 			_infoTs( "The translation result does not seem to have a folder for language '%s'!" % lang )
 		else:
 			newPath= newFoldersHash[lang]
-			_dbx( newPath )
+			# _dbx( newPath )
 			diffLines= composeDiff( oldPath, newPath )
-			# fixme: how do we merge two lists?
-			diffLinesAll.append( composeDiff( oldPath, newPath ) )
+			_dbx( type( diffLines ) ); _dbx( len( diffLines ) )
+			diffLinesAll= diffLinesAll + diffLines 
 
 	if len( diffLinesAll ) == 0:
 		_errorExit( "Apparently no folders exist to perform diff on" )
 
+	_dbx( "Lines in diff report: %d" % len( diffLinesAll ) )
 	_infoTs( "Peeking first few lines of diff report:\n%s" % "".join( diffLinesAll[0:5] ) )
 
 	if os.path.exists( outputPath ):
@@ -896,12 +906,12 @@ def actionLocalizeAppViaGcloud ( projectFolder ):
 	gcloudOutputPaths, iosFilePaths= actionTranslateViaGcloud ( appStringsFile= tempMasterStringsFile, targetLangs= targetLangs, lProjDirNames= tempLProjDirNames )
 
 	# post-processing
-	fakedResultFolders=  [ 
-		  './iosFiles/it.IT'
-		, './iosFiles/zh.ZH'
-		] # files are already UTF-8 
+	# fakedResultFolders=  [ './iosFiles/it.IT' , './iosFiles/zh.ZH' ] # files are already UTF-8 
 
-	diffReportFile= reportDiff( oldFolders= lProjDirNames, newFolders= iosFilePaths, outputDir= saveDir )
+	newFolders= []
+	for path in iosFilePaths:
+		newFolders.append( os.path.split( path )[0] )
+	diffReportFile= reportDiff( oldFolders= lProjDirNames, newFolders= newFolders, outputDir= saveDir )
 	_infoTs( "Review diffReportFile '%s' before deplyoing: " %  diffReportFile)
 
 #################################################################################
