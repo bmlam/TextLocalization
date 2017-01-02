@@ -554,7 +554,7 @@ request to gcloud and capture its output. Following output types are possible:
 def callGenstrings ( relevantFiles, outputDir ) :
 	"""
 	"""
-	cmdArgs = ['genstrings', '-o', outputDir, ] 
+	cmdArgs = ['genstrings', '-q', '-o', outputDir, ] 
 
 	for srcFile in relevantFiles: cmdArgs.append( srcFile )
 	_dbx( " ".join( cmdArgs ) )
@@ -793,7 +793,7 @@ def extractAppRelevantPaths ( projectFolder ):
 			# list relevant file extensions here 	
 			if nameSuffix in ( '.swift', '.m'):
 				filePath= os.path.join( curRoot, file )
-				_dbx( "filePath: %s" % filePath )
+				# _dbx( "filePath: %s" % filePath )
 				sourceCodeFiles.append( os.path.join(curRoot, file) )
 			else:
 				dummy, pathTail= os.path.split( curRoot )
@@ -811,19 +811,19 @@ def composeDiff ( oldPath, newFolders ):
 	cmdArgs = ['diff', '-u', '-r', oldPath, newFolders ] 
 
 	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
-	msgLines, errLines= proc.communicate( )
+	stdoutContent, errLines= proc.communicate( )
 	# _dbx( type( msgLines ) );  _dbx( len( msgLines ) )
 	if len( errLines ) > 0 :
 		_printStdErr( ''.join( errLines  ) )
 
 		_errorExit( "Aborted due to previous errors" )
 
-	if type( msgLines ) is str: # fixme: not sure why subprocess.communicate would returns str
-		newLines = []
-		newLines.append( msgLines )
-		msgLines= newLines
+	if type( stdoutContent ) is str: # subprocess.communicate may return str which contains newlines inside
+		msgLines= stdoutContent.split( '\n' )
 		# _dbx( type( msgLines ) );  _dbx( len( msgLines ) )
-	return msgLines
+		return msgLines
+	else:
+		return stdoutContent
 
 #################################################################################
 def reportDiff ( oldFolders, newFolders, outputDir ):
@@ -871,7 +871,7 @@ with matching target language may be sufficient
 		_errorExit( "Apparently no folders exist to perform diff on" )
 
 	_dbx( "Lines in diff report: %d" % len( diffLinesAll ) )
-	_infoTs( "Peeking first few lines of diff report:\n%s" % "".join( diffLinesAll[0:5] ) )
+	_infoTs( "Peeking first few lines of diff report:\n%s" % "\n".join( diffLinesAll[0:10] ) )
 
 	if os.path.exists( outputPath ):
 		_errorExit( "File '%s' already exists" % outputPath )
@@ -896,7 +896,7 @@ def actionLocalizeAppViaGcloud ( projectFolder ):
 	workRoot = os.path.join( g_homeDir, 'TextLocalization_TEMP_ROOT' )
 	if not os.path.exists( workRoot ): os.makedirs( workRoot )
 	saveDir= os.path.join( workRoot, tempDirBaseName )
-	_dbx( "; ".join( sourceCodeFiles ) )
+	# _dbx( "; ".join( sourceCodeFiles ) )
 	_dbx( tempDir )
 	_dbx( saveDir )
 	os.rename( tempDir, saveDir )
@@ -911,8 +911,12 @@ def actionLocalizeAppViaGcloud ( projectFolder ):
 	newFolders= []
 	for path in iosFilePaths:
 		newFolders.append( os.path.split( path )[0] )
+
+	for path in lProjDirNames:
+		do16To8ConversionForFolder( path )
+
 	diffReportFile= reportDiff( oldFolders= lProjDirNames, newFolders= newFolders, outputDir= saveDir )
-	_infoTs( "Review diffReportFile '%s' before deplyoing: " %  diffReportFile)
+	_infoTs( "Review diffReportFile '%s' before deploying: " %  diffReportFile)
 
 #################################################################################
 def getFileType( filePath ):
