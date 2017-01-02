@@ -150,7 +150,7 @@ def parseCmdLine() :
 	parser = argparse.ArgumentParser()
 	# lowercase shortkeys
 	parser.add_argument( '-a', '--action', help='which action applies'
-		, choices=[ 'DeployCsvToAppFolder' , 'DownloadAppStringFromDb', 'GenCsvFromAppStrings', 'LocalizeAppViaGcloud' , 'TranslateViaGcloud', 'UploadCsvToDb' ],
+		, choices=[ 'DeployCsvToAppFolder' , 'DownloadAppStringFromDb', 'GenCsvFromAppStrings', 'LocalizeAppViaGcloud' , 'TranslateViaGcloud', 'UploadCsvToDb', 'SpecialTest' ],
  required= True)
 	parser.add_argument( '-c', '--connectString', help='Oracle connect string' )
 	parser.add_argument( '-n', '--appName')
@@ -915,6 +915,77 @@ def actionLocalizeAppViaGcloud ( projectFolder ):
 	_infoTs( "Review diffReportFile '%s' before deplyoing: " %  diffReportFile)
 
 #################################################################################
+def getFileType( filePath ):
+	"""
+call os command file 
+	"""
+	cmdArgs = ['file', filePath]
+	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
+	msgLines, errLines= proc.communicate( ) #fixme: error handling!
+	# _dbx( len( msgLines ) )
+	return msgLines
+
+#################################################################################
+def convert16To8InPlace( filePath, backupDir, reverse= False ):
+	"""
+convert utf-encoding for text file in place
+	"""
+	# stdout of subprocess is probably ascii by default
+	tempFile= tempfile.mktemp()
+	convStdout= codecs.open( tempFile, "w", encoding='utf-8' )
+	_dbx( tempFile )
+	cmdArgs = ['iconv', '-f', 'UTF-16', '-t', 'UTF-8', filePath ] 
+
+	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=convStdout, stderr=subprocess.PIPE)
+	msgLines, errLines= proc.communicate( )
+	# _dbx( type( msgLines ) );_dbx( len( msgLines ) );
+	# _dbx( msgLines ) 
+	if len( errLines ) > 0 :
+		_printStdErr( ''.join( errLines  ) )
+
+		_errorExit( "Aborted due to previous errors" )
+	# move original file to backup dir
+	backupTo= os.path.join( backupDir, os.path.basename( filePath ) )
+	os.rename( filePath, backupTo )
+	_dbx( "Original file %s renamed to %s" % ( filePath, backupTo ) )
+	# move new file to original path
+	os.rename( tempFile, filePath )
+	_dbx( "temp file renamed" )
+
+#################################################################################
+def do16To8ConversionForFolder( folderName, reverse= False ):
+	"""
+convert a utf-16 encoded text file to utf-8. If reverse flag is true
+the reverse conversion will be performed (as of 2017.01.02 not implemented)
+	"""
+	# create a backup directory to put the original UTF-16 encoded files
+	tempDir= tempfile.mkdtemp()
+	tempDirBaseName= os.path.basename( tempDir )
+	workRoot = os.path.join( g_homeDir, 'TextLocalization_TEMP_ROOT' )
+	if not os.path.exists( workRoot ): os.makedirs( workRoot )
+	backupDir= os.path.join( workRoot, tempDirBaseName )
+	os.rename( tempDir, backupDir )
+
+	for baseName in [ 'Localizable.strings', 'Table.strings' ]: 
+		fullPath= os.path.join( folderName, baseName )
+		# _dbx( fullPath )
+		if os.path.exists( fullPath ):
+			fileType= getFileType( fullPath )
+			# _dbx( fileType )
+			if 'UTF-16' in fileType:
+				_infoTs( "File '%s' will be converted from UTF-16 to UTF-8" % fullPath )
+				convert16To8InPlace( fullPath, backupDir )
+			else:
+				_infoTs( "File '%s' does not appear to be encoded in UTF-16" % fullPath )
+
+#################################################################################
+def actionSpecialTest():
+	for path in ['/Users/bmlam/Dropbox/my-apps/TestShareSheet/TestShareSheet/zh-Hans.lproj'
+		, '/Users/bmlam/Dropbox/my-apps/TestShareSheet/TestShareSheet/de.lproj' 
+		] :
+		do16To8ConversionForFolder( path )
+
+#################################################################################
 def main():
 	argObject= parseCmdLine()
 	if argObject.action == 'GenCsvFromAppStrings':
@@ -925,6 +996,8 @@ def main():
 	elif argObject.action == 'TranslateViaGcloud':
 		actionTranslateViaGcloud( appStringsFile = argObject.appStringsFile
 			, targetLangs = g_defaultTargetLangs ) #fixme: derive langs from app folder structure!
+	elif argObject.action == 'SpecialTest':
+		actionSpecialTest()
 	else:
 		_errorExit( "Action %s is not yet implemented" % ( argObject.action ) )
 		
