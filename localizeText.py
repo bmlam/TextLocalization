@@ -115,8 +115,8 @@ g_gTokenEnvVarName='GCLOUD_TOKEN'
 
 g_defaultAppStringsFile= 'Localizable.strings'
 g_defaultGcloudRequestFile= 'translateRequest.json'
-# g_defaultTargetLangs = ['de', 'fr', 'zh' ] 
 g_defaultTargetLangs = ['zh', 'it' ]
+g_supportedStringFiles =	[ 'Localizable.strings', 'Table.strings' ]
 g_dbxCnt = 0
 g_maxDbxMsg = 5000
 
@@ -150,9 +150,10 @@ def parseCmdLine() :
 	parser = argparse.ArgumentParser()
 	# lowercase shortkeys
 	parser.add_argument( '-a', '--action', help='which action applies'
-		, choices=[ 'DeployCsvToAppFolder' , 'DownloadAppStringFromDb', 'GenCsvFromAppStrings', 'LocalizeAppViaGcloud' , 'TranslateViaGcloud', 'UploadCsvToDb', 'SpecialTest' ],
+		, choices=[ 'DeployIosFilesToAppProject' , 'DownloadAppStringFromDb', 'GenCsvFromAppStrings', 'LocalizeAppViaGcloud' , 'TranslateViaGcloud', 'UploadCsvToDb', 'SpecialTest' ],
  required= True)
 	parser.add_argument( '-c', '--connectString', help='Oracle connect string' )
+	parser.add_argument( '-f', '--deployFrom', help='parent of the temporary lproj folders' )
 	parser.add_argument( '-n', '--appName')
 	parser.add_argument( '-o', '--oraUser')
 	parser.add_argument( '-O', '--outputCsv')
@@ -172,8 +173,9 @@ def parseCmdLine() :
 	action = result.action
 	if False: # pseudo head of "switch" statement
 		None
-	elif action == 'DownloadAppStringFromDb' :
-		None
+	elif action == 'DeployIosFilesToAppProject' :
+		if result.xcodeProjectFolder  ==None: _errorExit( "Parameter %s is required for %s" % ( 'xcodeProjectFolder', action ) )
+		if result.deployFrom == None: _errorExit( "Parameter %s is required for %s" % ( 'deployFrom', action ) )
 	elif action == 'GenCsvFromAppStrings' :
 		if result.outputCsv == None: _errorExit( "Parameter %s is required for %s" % ( 'outputCsv', action ) )
 		if result.xcodeProjectFolder == None: _errorExit( "Parameter %s is required for %s" % ( 'xcodeProjectFolder', action ) )
@@ -427,7 +429,7 @@ Note that we need to convert the placeholders {n\} back to its original %d or %s
 	if not os.path.exists( dir ):
 		os.makedirs( dir )
 
-	_dbx( "Writing to ios File '%s'" % iosFilePath )
+	# _dbx( "Writing to ios File '%s'" % iosFilePath )
 	outputF= codecs.open( iosFilePath , "w" , encoding='utf-8' )
 	outputF.write( "\n".join( lines ) )
 	outputF.close()
@@ -459,7 +461,7 @@ and store in the given path. We store the gcloud output for debugging purpose.
 		# But what if for some reason, the order is not consistent?
 		formatters= formattersList[ix]
 		targetLang= outputFile[-2:] # fixme: pray that lang code is always 2 in length
-		_dbx( targetLang )
+		# _dbx( targetLang )
 		convertTranslationOutputToIosFormat ( targetLang= targetLang
 			, formattersList= formattersList
 			, translationResultPath= gcloudOutputPaths[ix]
@@ -546,7 +548,7 @@ request to gcloud and capture its output. Following output types are possible:
 
 			_errorExit( "due to previous error" )
 
-		_dbx( "writing to '%s'" % outputFilePath )
+		# _dbx( "writing to '%s'" % outputFilePath )
 		outF = open( outputFilePath, "w" )
 		outF.write( "".join( msgLines ) )
 
@@ -627,9 +629,42 @@ def actionDownloadAppStringFromDb ( appKey, forAllLangs = True ):
 
 
 #################################################################################
-def actionDeployCsvToAppFolder ( allLangCsvPath, appFolderPath ):
+def deployStringsFiles ( fromFolder, toFolder ):
 	"""
 	"""
+	deployCnt= 0
+	for tgtFile in glob.glob( toFolder + '/*.strings' ):
+		srcFile= os.path.join( fromFolder, os.path.basename( tgtFile ) )
+		_dbx( srcFile )
+		if not os.path.exists( srcFile ):
+			_infoTs( "source file '%s' does not exist!" % srcFile )
+		else:
+			shutil.copyfile( srcFile, tgtFile )	
+			_dbx( "%s deployed" % tgtFile )
+			deployCnt += 1
+	return deployCnt
+
+#################################################################################
+def actionDeployIosFilesToAppProject ( iosFilesTempRoot, appFolderPath ):
+	"""
+	"""
+	# double underscore variables are to be ignored
+	__targetMasterStringsFile, __sourceCodeFiles, appLocalizeDirNames, targetLangs= extractAppRelevantPaths( appFolderPath )
+	deployFromDirs= []
+	for path in appLocalizeDirNames:
+		baseName= os.path.basename( path )
+		lProjDirName= os.path.join( iosFilesTempRoot, baseName )
+		deployFromDirs.append( lProjDirName )
+
+	_dbx( "; ".join( deployFromDirs ) )
+	deployTot= 0
+	folderCnt= 0
+	for i, appDir in enumerate( appLocalizeDirNames ):
+		folderCnt += 1
+		srcDir= deployFromDirs[i]
+		deployTot += deployStringsFiles( fromFolder= srcDir, toFolder= appDir )
+	_infoTs( "Deployed %d files for %d folders" % ( deployTot, folderCnt ) )
+		
 
 #################################################################################
 def escapeQuote ( text ):
@@ -769,7 +804,7 @@ We should get back:
 		, gcloudOutputPaths= gcloudOutputPaths
 		, localizableStringsPaths = iosFilePaths ) 
 
-	return gcloudOutputPaths, iosFilePaths 
+	return gcloudOutputPaths, iosFilePaths, stringsFileRoot
 
 #################################################################################
 def extractAppRelevantPaths ( projectFolder ):
@@ -832,8 +867,8 @@ assuming the strings files in each directory are utf-8, call diff -u to compare 
 pipe the output to one single output file. "diff -r -u" on each pair of old and new dir 
 with matching target language may be sufficient
 	"""
-	_dbx( "; ".join( oldFolders ) )
-	_dbx( "; ".join( newFolders ) )
+	# _dbx( "; ".join( oldFolders ) )
+	# _dbx( "; ".join( newFolders ) )
 
 	oldFoldersHash= {}
 	newFoldersHash= {}
@@ -842,15 +877,15 @@ with matching target language may be sufficient
 		pathTail= os.path.basename( path )
 		lang= pathTail[0:2]
 		newFoldersHash[lang]= path 
-	_dbx( len( newFoldersHash ) )
+	# _dbx( len( newFoldersHash ) )
 	for path in oldFolders:
 		pathTail= os.path.basename( path )
 		lang= pathTail[0:2]
 		oldFoldersHash[lang]= path 
-	_dbx( len( oldFoldersHash ) )
+	# _dbx( len( oldFoldersHash ) )
 
 	outputPath= os.path.join( outputDir, 'diffOutput.txt' )
-	_dbx( outputPath )
+	# _dbx( outputPath )
 
 	diffLinesAll= []
 
@@ -864,13 +899,13 @@ with matching target language may be sufficient
 			newPath= newFoldersHash[lang]
 			# _dbx( newPath )
 			diffLines= composeDiff( oldPath, newPath )
-			_dbx( type( diffLines ) ); _dbx( len( diffLines ) )
+			# _dbx( type( diffLines ) ); _dbx( len( diffLines ) )
 			diffLinesAll= diffLinesAll + diffLines 
 
 	if len( diffLinesAll ) == 0:
 		_errorExit( "Apparently no folders exist to perform diff on" )
 
-	_dbx( "Lines in diff report: %d" % len( diffLinesAll ) )
+	# _dbx( "Lines in diff report: %d" % len( diffLinesAll ) )
 	_infoTs( "Peeking first few lines of diff report:\n%s" % "\n".join( diffLinesAll[0:10] ) )
 
 	if os.path.exists( outputPath ):
@@ -903,7 +938,7 @@ def actionLocalizeAppViaGcloud ( projectFolder ):
 	tempMasterStringsFile= callGenstrings( relevantFiles= sourceCodeFiles, outputDir= saveDir )
 	_dbx( tempMasterStringsFile )
 
-	gcloudOutputPaths, iosFilePaths= actionTranslateViaGcloud ( appStringsFile= tempMasterStringsFile, targetLangs= targetLangs, lProjDirNames= tempLProjDirNames )
+	gcloudOutputPaths, iosFilePaths, iosFilesRoot = actionTranslateViaGcloud ( appStringsFile= tempMasterStringsFile, targetLangs= targetLangs, lProjDirNames= tempLProjDirNames )
 
 	# post-processing
 	# fakedResultFolders=  [ './iosFiles/it.IT' , './iosFiles/zh.ZH' ] # files are already UTF-8 
@@ -917,6 +952,7 @@ def actionLocalizeAppViaGcloud ( projectFolder ):
 
 	diffReportFile= reportDiff( oldFolders= lProjDirNames, newFolders= newFolders, outputDir= saveDir )
 	_infoTs( "Review diffReportFile '%s' before deploying: " %  diffReportFile)
+	_infoTs( "Deploy from '%s' after review. Make sure it is a persistent location!" %  iosFilesRoot )
 
 #################################################################################
 def getFileType( filePath ):
@@ -970,7 +1006,7 @@ the reverse conversion will be performed (as of 2017.01.02 not implemented)
 	backupDir= os.path.join( workRoot, tempDirBaseName )
 	os.rename( tempDir, backupDir )
 
-	for baseName in [ 'Localizable.strings', 'Table.strings' ]: 
+	for baseName in g_supportedStringFiles: 
 		fullPath= os.path.join( folderName, baseName )
 		# _dbx( fullPath )
 		if os.path.exists( fullPath ):
@@ -992,9 +1028,12 @@ def actionSpecialTest():
 #################################################################################
 def main():
 	argObject= parseCmdLine()
-	if argObject.action == 'GenCsvFromAppStrings':
+	if argObject.action == 'DeployIosFilesToAppProject':
+		actionDeployIosFilesToAppProject( iosFilesTempRoot= argObject.deployFrom
+			, appFolderPath = argObject.xcodeProjectFolder )
+	elif argObject.action == 'GenCsvFromAppStrings':
 		actionGenCsvFromAppStrings( appFolderPath = argObject.xcodeProjectFolder
-				, outputFile = argObject.outputCsv )
+			, outputFile = argObject.outputCsv )
 	elif argObject.action == 'LocalizeAppViaGcloud':
 		actionLocalizeAppViaGcloud( projectFolder = argObject.xcodeProjectFolder )
 	elif argObject.action == 'TranslateViaGcloud':
