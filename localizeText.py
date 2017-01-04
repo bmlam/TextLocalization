@@ -648,8 +648,14 @@ def deployStringsFiles ( fromFolder, toFolder ):
 def actionDeployIosFilesToAppProject ( iosFilesTempRoot, appFolderPath ):
 	"""
 	"""
+	deployTot= 0
+	folderCnt= 0
 	# double underscore variables are to be ignored
-	__targetMasterStringsFile, __sourceCodeFiles, appLocalizeDirNames, targetLangs= extractAppRelevantPaths( appFolderPath )
+	targetMasterStringsFile, __sourceCodeFiles, appLocalizeDirNames, targetLangs= extractAppRelevantPaths( appFolderPath )
+	tempMasterStringsFile= os.path.join( iosFilesTempRoot, 'Localizable.strings' ) # fixme: we want to support other files eventually
+	shutil.copyfile( tempMasterStringsFile, tempMasterStringsFile )
+	deployTot += 1
+
 	deployFromDirs= []
 	for path in appLocalizeDirNames:
 		baseName= os.path.basename( path )
@@ -657,14 +663,11 @@ def actionDeployIosFilesToAppProject ( iosFilesTempRoot, appFolderPath ):
 		deployFromDirs.append( lProjDirName )
 
 	_dbx( "; ".join( deployFromDirs ) )
-	deployTot= 0
-	folderCnt= 0
 	for i, appDir in enumerate( appLocalizeDirNames ):
 		folderCnt += 1
 		srcDir= deployFromDirs[i]
 		deployTot += deployStringsFiles( fromFolder= srcDir, toFolder= appDir )
 	_infoTs( "Deployed %d files for %d folders" % ( deployTot, folderCnt ) )
-		
 
 #################################################################################
 def escapeQuote ( text ):
@@ -754,7 +757,7 @@ We should get back:
 	translationKeys, guiTexts, comments= parseAppStringsFile ( sourceFile = appStringsFile )
 	formattedList= []
 	# for key in translationKeys:
-	for key in translationKeys [0 : 9]: # fixme!
+	for key in translationKeys :
 		newKey, dummy = parseKeyFromToGloud ( key )
 		# _dbx( newKey )
 		formattedList.append( "'q': '%s'" % escapeQuote( newKey ) )
@@ -950,6 +953,7 @@ def actionLocalizeAppViaGcloud ( projectFolder ):
 	for path in lProjDirNames:
 		do16To8ConversionForFolder( path )
 
+	os.rename( tempMasterStringsFile, iosFilesRoot )
 	diffReportFile= reportDiff( oldFolders= lProjDirNames, newFolders= newFolders, outputDir= saveDir )
 	_infoTs( "Review diffReportFile '%s' before deploying: " %  diffReportFile)
 	_infoTs( "Deploy from '%s' after review. Make sure it is a persistent location!" %  iosFilesRoot )
