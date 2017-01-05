@@ -652,8 +652,9 @@ def actionDeployIosFilesToAppProject ( iosFilesTempRoot, appFolderPath ):
 	folderCnt= 0
 	# double underscore variables are to be ignored
 	targetMasterStringsFile, __sourceCodeFiles, appLocalizeDirNames, targetLangs= extractAppRelevantPaths( appFolderPath )
+	_dbx( targetMasterStringsFile )
 	tempMasterStringsFile= os.path.join( iosFilesTempRoot, 'Localizable.strings' ) # fixme: we want to support other files eventually
-	shutil.copyfile( tempMasterStringsFile, tempMasterStringsFile )
+	shutil.copyfile( tempMasterStringsFile, targetMasterStringsFile )
 	deployTot += 1
 
 	deployFromDirs= []
