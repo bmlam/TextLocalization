@@ -635,12 +635,12 @@ def deployStringsFiles ( fromFolder, toFolder ):
 	deployCnt= 0
 	for tgtFile in glob.glob( toFolder + '/*.strings' ):
 		srcFile= os.path.join( fromFolder, os.path.basename( tgtFile ) )
-		_dbx( srcFile )
+		# _dbx( srcFile )
 		if not os.path.exists( srcFile ):
 			_infoTs( "source file '%s' does not exist!" % srcFile )
 		else:
 			shutil.copyfile( srcFile, tgtFile )	
-			_dbx( "%s deployed" % tgtFile )
+			# _dbx( "%s deployed" % tgtFile )
 			deployCnt += 1
 	return deployCnt
 
@@ -781,7 +781,7 @@ We should get back:
 		)
 		requestFilePath =  os.path.join( workFolder, "translationResult.json." + targetLang )
 		requestFilePaths.append( requestFilePath )
-		_dbx( "writing to '%s'.." % requestFilePath )
+		# _dbx( "writing to '%s'.." % requestFilePath )
 		oFile = open( requestFilePath, 'w' )
 		oFile.write( jsonText )
 		oFile.close()
@@ -915,7 +915,7 @@ with matching target language may be sufficient
 	if os.path.exists( outputPath ):
 		_errorExit( "File '%s' already exists" % outputPath )
 	outputFh= open( outputPath, "w" )
-	outputFh.write( "".join( diffLinesAll ) )
+	outputFh.write( "\n".join( diffLinesAll ) )
 	outputFh.close()
 	
 	return outputPath	
@@ -954,7 +954,7 @@ def actionLocalizeAppViaGcloud ( projectFolder ):
 	for path in lProjDirNames:
 		do16To8ConversionForFolder( path )
 
-	os.rename( tempMasterStringsFile, iosFilesRoot )
+	shutil.move( tempMasterStringsFile, iosFilesRoot )
 	diffReportFile= reportDiff( oldFolders= lProjDirNames, newFolders= newFolders, outputDir= saveDir )
 	_infoTs( "Review diffReportFile '%s' before deploying: " %  diffReportFile)
 	_infoTs( "Deploy from '%s' after review. Make sure it is a persistent location!" %  iosFilesRoot )
