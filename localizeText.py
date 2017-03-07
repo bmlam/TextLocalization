@@ -131,9 +131,9 @@ def _dbx ( text ):
 
 def _infoTs ( text , withTs = False ):
 	if withTs :
-		print( '%s (Ln%d) %s' % ( time.strftime("%H:%M:%S"), inspect.stack()[1][2], text ) )
+		print( '%s (Ln%d) *** %s' % ( time.strftime("%H:%M:%S"), inspect.stack()[1][2], text ) )
 	else :
-		print( '(Ln%d) %s' % ( inspect.stack()[1][2], text ) )
+		print( '(Ln%d) *** %s' % ( inspect.stack()[1][2], text ) )
 
 def _printStdErr ( text ):
 		sys.stderr.write( text + "\n" )
@@ -430,10 +430,11 @@ Note that we need to convert the placeholders {n\} back to its original %d or %s
 	if not os.path.exists( dir ):
 		os.makedirs( dir )
 
-	# _dbx( "Writing to ios File '%s'" % iosFilePath )
+	_infoTs( "Writing result for '%s' to ios File '%s'" % ( targetLang, iosFilePath ) )
 	outputF= codecs.open( iosFilePath , "w" , encoding='utf-8' )
 	outputF.write( "\n".join( lines ) )
 	outputF.close()
+
 
 #################################################################################
 def translateForLanguages ( translationKeys, comments, requestFiles, gcloudOutputPaths, localizableStringsPaths ) :
@@ -443,6 +444,9 @@ Given a list of json request files, gcloud output paths and paths of Localizable
 but we wont validate it), call the gcloud translator, convert the output to iOS format
 and store in the given path. We store the gcloud output for debugging purpose.
 	"""
+	_dbx( requestFiles )
+	_dbx( gcloudOutputPaths )
+	_dbx( localizableStringsPaths )
 	# loop over request files
 	for ix, requestFile in enumerate( requestFiles ):
 		# translate
@@ -462,14 +466,16 @@ and store in the given path. We store the gcloud output for debugging purpose.
 		# But what if for some reason, the order is not consistent?
 		formatters= formattersList[ix]
 		targetLang= outputFile[-2:] # fixme: pray that lang code is always 2 in length
-		# _dbx( targetLang )
-		convertTranslationOutputToIosFormat ( targetLang= targetLang
-			, formattersList= formattersList
-			, translationResultPath= gcloudOutputPaths[ix]
-			, iosFilePath= localizableStringsPaths[ix] 
-			, translationKeys = translationKeys 
-			, comments = comments 
-			)
+		_dbx( outputFile )
+		_dbx( targetLang )
+		if True :
+			convertTranslationOutputToIosFormat ( targetLang= targetLang
+				, formattersList= formattersList
+				, translationResultPath= gcloudOutputPaths[ix]
+				, iosFilePath= localizableStringsPaths[ix] # based on index position!
+				, translationKeys = translationKeys 
+				, comments = comments 
+				)
 
 #################################################################################
 def acquireAndStoreGToken():
@@ -653,8 +659,10 @@ def actionDeployIosFilesToAppProject ( iosFilesTempRoot, appFolderPath ):
 	folderCnt= 0
 	# double underscore variables are to be ignored
 	targetMasterStringsFile, __sourceCodeFiles, appLocalizeDirNames, targetLangs= extractAppRelevantPaths( appFolderPath )
-	_dbx( targetMasterStringsFile )
+	_infoTs( "Target master string file set to: %s " % targetMasterStringsFile )
+
 	tempMasterStringsFile= os.path.join( iosFilesTempRoot, 'Localizable.strings' ) # fixme: we want to support other files eventually
+	_infoTs( "Copy %s to %s: " % ( tempMasterStringsFile, targetMasterStringsFile ) )
 	shutil.copyfile( tempMasterStringsFile, targetMasterStringsFile )
 	deployTot += 1
 
@@ -664,10 +672,10 @@ def actionDeployIosFilesToAppProject ( iosFilesTempRoot, appFolderPath ):
 		lProjDirName= os.path.join( iosFilesTempRoot, baseName )
 		deployFromDirs.append( lProjDirName )
 
-	_dbx( "; ".join( deployFromDirs ) )
 	for i, appDir in enumerate( appLocalizeDirNames ):
 		folderCnt += 1
 		srcDir= deployFromDirs[i]
+		_infoTs( "Deploying string file from %s to %s" % ( srcDir, appDir ) )
 		deployTot += deployStringsFiles( fromFolder= srcDir, toFolder= appDir )
 	_infoTs( "Deployed %d files for %d folders" % ( deployTot, folderCnt ) )
 
@@ -749,14 +757,15 @@ We should get back:
 }
 	"""
 	workFolder= tempfile.mkdtemp()
-	_infoTs( "workFolder: '%s'" % workFolder )
+	_infoTs( "Work folder set to: '%s'" % workFolder )
+	_infoTs( "App strings file set to: '%s'" % appStringsFile )
 
 	# 
 	# generate request files
 	# 
 	requestFilePaths = []
-	_dbx( appStringsFile )
 	translationKeys, guiTexts, comments= parseAppStringsFile ( sourceFile = appStringsFile )
+	_infoTs( "Count of translation keys: '%d'" % len( translationKeys ) )
 	formattedList= []
 	# for key in translationKeys:
 	for key in translationKeys :
@@ -772,7 +781,8 @@ We should get back:
  ,'format': 'text'
 {rightScurly}
 """
-	_dbx( "; ".join( targetLangs ) )
+	_infoTs( "Preparing translation query files for target languages: %s" % "; ".join( targetLangs ) )
+
 	for targetLang in targetLangs:
 		jsonText = jsonTemplate.format( qListAsText= qListAsText
 			, targetLang= singleQuote( targetLang )
@@ -787,6 +797,8 @@ We should get back:
 		oFile.write( jsonText )
 		oFile.close()
 
+	_dbx( targetLangs )
+	_dbx( requestFilePaths )
 	# compile transation result file paths
 	gcloudOutputPaths= []
 	for targetLang in targetLangs:
@@ -797,12 +809,15 @@ We should get back:
 	stringsFileRoot= tempfile.mkdtemp()
 	_infoTs( "stringsFileRoot: '%s'" % stringsFileRoot )
 
+	_dbx( gcloudOutputPaths )
 	iosFilePaths= []
 	for i, targetLang in enumerate( targetLangs ):
 		subdir= lProjDirNames[i]
+		_dbx( subdir )
 		iosFilePath =  os.path.join( stringsFileRoot, subdir, g_defaultAppStringsFile )
 		iosFilePaths.append( iosFilePath )
 
+	_dbx( iosFilePaths )
 	translateForLanguages( translationKeys= translationKeys
 		, comments= comments
 		, requestFiles= requestFilePaths
@@ -818,6 +833,7 @@ def extractAppRelevantPaths ( projectFolder ):
 	masterStringsFile=None; sourceCodeFiles = []; localizableFolders= []; targetLangs = []
 
 	langSupportDirPattern= re.compile( "^[a-z]{2}.*\.lproj$" ) #fixme: how do we correctly match optional string such as in zh-Hans.lproj ?
+	mapLang2IosPath = {}
 	for curRoot, dirs, files in os.walk ( projectFolder ):
 		for dir in dirs:
 			match= langSupportDirPattern.match( dir )
@@ -826,7 +842,7 @@ def extractAppRelevantPaths ( projectFolder ):
 				targetLangs.append( lang )
 				dirPath= os.path.join( curRoot, dir )
 				# _dbx( lang ); _dbx( dirPath )
-				localizableFolders.append( dirPath )
+				mapLang2IosPath[ lang ] = dirPath
 		for file in files:
 			namePrefix, nameSuffix= os.path.splitext( file )
 			# _dbx( namePrefix ); _dbx( nameSuffix )
@@ -842,19 +858,25 @@ def extractAppRelevantPaths ( projectFolder ):
 					_dbx( masterStringsFile )
 
 	uniqueTargetLangs = set( targetLangs )
-	uniqueTargetLangs.remove( "en" )
+	if "en" in targetLangs:
+		uniqueTargetLangs.remove( "en" )
 	_dbx( uniqueTargetLangs )
 	targetLangsNoEN = list( uniqueTargetLangs )
 	# remove lang "en"
+	localizableFolders= []
+	for lang in targetLangsNoEN:
+		localizableFolders.append( mapLang2IosPath[ lang ] )
 	
 	return masterStringsFile, sourceCodeFiles, localizableFolders, targetLangsNoEN
 
 
 #################################################################################
-def composeDiff ( oldPath, newFolders ):
+def composeDiff ( oldPath, newFolder ):
 	"""
 	"""
-	cmdArgs = ['diff', '-u', '-r', oldPath, newFolders ] 
+	_dbx( oldPath )
+	_dbx( newFolder )
+	cmdArgs = ['diff', '-u', '-r', oldPath, newFolder ] 
 
 	proc= subprocess.Popen( cmdArgs ,stdin=subprocess.PIPE ,stdout=subprocess.PIPE ,stderr=subprocess.PIPE)
 	stdoutContent, errLines= proc.communicate( )
@@ -901,14 +923,14 @@ with matching target language may be sufficient
 	diffLinesAll= []
 
 	for lang, oldPath in oldFoldersHash.iteritems():
-		# _dbx( oldPath )
+		_dbx( oldPath )
 		files= glob.glob( oldPath + "/*" )
 		#_dbx( ";".join( files ) )
 		if not lang in newFoldersHash.keys():
 			_infoTs( "The translation result does not seem to have a folder for language '%s'!" % lang )
 		else:
 			newPath= newFoldersHash[lang]
-			# _dbx( newPath )
+			_dbx( newPath )
 			diffLines= composeDiff( oldPath, newPath )
 			# _dbx( type( diffLines ) ); _dbx( len( diffLines ) )
 			diffLinesAll= diffLinesAll + diffLines 
@@ -934,6 +956,8 @@ def actionLocalizeAppViaGcloud ( projectFolder ):
 	_infoTs( "Got down this path" )
 	# pre-processing
 	targetMasterStringsFile, sourceCodeFiles, lProjDirNames, targetLangs= extractAppRelevantPaths( projectFolder )
+	_dbx( targetLangs )
+	_dbx( lProjDirNames )
 	tempLProjDirNames= []
 	for dirName in lProjDirNames:
 		tempLProjDirNames.append( os.path.basename( dirName ) )
@@ -1041,6 +1065,7 @@ def actionSpecialTest():
 #################################################################################
 def main():
 	argObject= parseCmdLine()
+	# _errorExit( "What does a translation output with path /var/folders/kn/wnll0h5979lg2kj84_zb0xsc0000gn/T/tmpZsLO8M/zh-Hans.lproj/Localizable.strings contains Spanish?" )
 	if argObject.action == 'DeployIosFilesToAppProject':
 		actionDeployIosFilesToAppProject( iosFilesTempRoot= argObject.deployFrom
 			, appFolderPath = argObject.xcodeProjectFolder )
