@@ -381,6 +381,7 @@ convert it and store to the given iOS file path.
 Note that we need to convert the placeholders {n\} back to its original %d or %s and the like
 	"""
 
+	_dbx( translationResultPath )
 	inputFh= open(translationResultPath, 'r') 
 	jsonData= json.load( inputFh )
 	# pprint.pprint( jsonData )
@@ -771,7 +772,7 @@ We should get back:
  ,'format': 'text'
 {rightScurly}
 """
-	# _dbx( jsonText )
+	_dbx( "; ".join( targetLangs ) )
 	for targetLang in targetLangs:
 		jsonText = jsonTemplate.format( qListAsText= qListAsText
 			, targetLang= singleQuote( targetLang )
@@ -840,7 +841,13 @@ def extractAppRelevantPaths ( projectFolder ):
 					masterStringsFile= os.path.join( curRoot, file )
 					_dbx( masterStringsFile )
 
-	return masterStringsFile, sourceCodeFiles, localizableFolders, targetLangs 
+	uniqueTargetLangs = set( targetLangs )
+	uniqueTargetLangs.remove( "en" )
+	_dbx( uniqueTargetLangs )
+	targetLangsNoEN = list( uniqueTargetLangs )
+	# remove lang "en"
+	
+	return masterStringsFile, sourceCodeFiles, localizableFolders, targetLangsNoEN
 
 
 #################################################################################
@@ -924,6 +931,7 @@ with matching target language may be sufficient
 def actionLocalizeAppViaGcloud ( projectFolder ):
 	"""
 	"""
+	_infoTs( "Got down this path" )
 	# pre-processing
 	targetMasterStringsFile, sourceCodeFiles, lProjDirNames, targetLangs= extractAppRelevantPaths( projectFolder )
 	tempLProjDirNames= []
