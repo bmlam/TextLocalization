@@ -17,18 +17,18 @@ translated manually.
 
 Action "UploadToDb" upserts the .csv entries into Oracle DB tables
 
-Action "TranslateViaGcloud" takes the master app strings file, generates json request files
+Action "TranslateAppStringsFileViaGcloud" takes the master app strings file, generates json request files
 as many as needed, calls translator, converts the result to iOS format
 
-Action "LocalizeAppViaGcloud" builds on TranslateViaGclou and adds the following steps:
+Action "LocalizeAppViaGcloud" builds on TranslateAppStringsFileViaGclou and adds the following steps:
 	Pre-processing: takes as argument the path to the project folder, generates a fresh Localizable.strings
-	Call TranslateViaGcloud
+	Call TranslateAppStringsFileViaGcloud
 	Post-processing: 
 		*converts the Localizable.strings files from UTF-16 to 8 so we can run "diff -u" on it (Apple seems to flavour UTF-16, although UTF-8 seems to work). For a quick win we may generate UTF-8 from the beginning. Conversion to UTF-16 can be done later.
 		*builds a diff-report as output for review
 Action DeployCsvToAppFolder takes a tree path containing the localized strings files and overwrite the existing files.
 		
-Action "deploy" builds on TranslateViaGclou and adds the following steps:
+Action "deploy" builds on TranslateAppStringsFileViaGclou and adds the following steps:
 
 In the case of gcloud, the json output from the API will be either:
 1. transformed to a .csv with the translated items of all target languages.
@@ -150,7 +150,7 @@ def parseCmdLine() :
 	parser = argparse.ArgumentParser()
 	# lowercase shortkeys
 	parser.add_argument( '-a', '--action', help='which action applies'
-		, choices=[ 'DeployIosFilesToAppProject' , 'DownloadAppStringFromDb', 'GenCsvFromAppStrings', 'LocalizeAppViaGcloud' , 'TranslateViaGcloud', 'UploadCsvToDb', 'SpecialTest' ],
+		, choices=[ 'DeployIosFilesToAppProject' , 'DownloadAppStringFromDb', 'GenCsvFromAppStrings', 'LocalizeAppViaGcloud' , 'TranslateAppStringsFileViaGcloud', 'UploadCsvToDb', 'SpecialTest' ],
  required= True)
 	parser.add_argument( '-c', '--connectString', help='Oracle connect string' )
 	parser.add_argument( '-f', '--deployFrom', help='parent of the temporary lproj folders' )
@@ -181,7 +181,7 @@ def parseCmdLine() :
 		if result.xcodeProjectFolder == None: _errorExit( "Parameter %s is required for %s" % ( 'xcodeProjectFolder', action ) )
 	elif action == 'LocalizeAppViaGcloud' :
 		if result.xcodeProjectFolder == None: _errorExit( "Parameter %s is required for %s" % ( 'xcodeProjectFolder', action ) )
-	elif action == 'TranslateViaGcloud' :
+	elif action == 'TranslateAppStringsFileViaGcloud' :
 		if result.jsonRequestFile == None: _errorExit( "Parameter %s is required for %s" % ( 'jsonRequestFile', action ) )
 	elif action == 'UploadCsvToDb' :
 		None
@@ -443,6 +443,16 @@ Given a list of json request files, gcloud output paths and paths of Localizable
 (the path should be indicative of the target language e.g "de.DE/localizable.string"
 but we wont validate it), call the gcloud translator, convert the output to iOS format
 and store in the given path. We store the gcloud output for debugging purpose.
+
+Each json request file looks as follows:
+
+{
+  'q': 'The quick brown fox jumped over the lazy dog.',
+  'source': 'en',
+  'target': 'es',
+  'format': 'text'
+}
+
 	"""
 	_dbx( requestFiles )
 	_dbx( gcloudOutputPaths )
@@ -731,7 +741,7 @@ This method has 2 use cases:
 	return newText, formatters
 
 #################################################################################
-def actionTranslateViaGcloud ( appStringsFile, targetLangs, lProjDirNames ):
+def actionTranslateAppStringsFileViaGcloud ( appStringsFile, targetLangs, lProjDirNames ):
 	"""
 For a request file with these data:
 {
@@ -974,7 +984,7 @@ def actionLocalizeAppViaGcloud ( projectFolder ):
 	tempMasterStringsFile= callGenstrings( relevantFiles= sourceCodeFiles, outputDir= saveDir )
 	_dbx( tempMasterStringsFile )
 
-	gcloudOutputPaths, iosFilePaths, iosFilesRoot = actionTranslateViaGcloud ( appStringsFile= tempMasterStringsFile, targetLangs= targetLangs, lProjDirNames= tempLProjDirNames )
+	gcloudOutputPaths, iosFilePaths, iosFilesRoot = actionTranslateAppStringsFileViaGcloud ( appStringsFile= tempMasterStringsFile, targetLangs= targetLangs, lProjDirNames= tempLProjDirNames )
 
 	# post-processing
 	# fakedResultFolders=  [ './iosFiles/it.IT' , './iosFiles/zh.ZH' ] # files are already UTF-8 
@@ -1074,8 +1084,8 @@ def main():
 			, outputFile = argObject.outputCsv )
 	elif argObject.action == 'LocalizeAppViaGcloud':
 		actionLocalizeAppViaGcloud( projectFolder = argObject.xcodeProjectFolder )
-	elif argObject.action == 'TranslateViaGcloud':
-		actionTranslateViaGcloud( appStringsFile = argObject.appStringsFile
+	elif argObject.action == 'TranslateAppStringsFileViaGcloud':
+		actionTranslateAppStringsFileViaGcloud( appStringsFile = argObject.appStringsFile
 			, targetLangs = g_defaultTargetLangs ) #fixme: derive langs from app folder structure!
 	elif argObject.action == 'SpecialTest':
 		actionSpecialTest()
