@@ -150,7 +150,13 @@ def parseCmdLine() :
 	parser = argparse.ArgumentParser()
 	# lowercase shortkeys
 	parser.add_argument( '-a', '--action', help='which action applies'
-		, choices=[ 'DeployIosFilesToAppProject' , 'DownloadAppStringFromDb', 'GenCsvFromAppStrings', 'LocalizeAppViaGcloud' , 'TranslateAppStringsFileViaGcloud', 'UploadCsvToDb', 'SpecialTest' ],
+		, choices=[ 'DeployIosFilesToAppProject' 
+			, 'DownloadAppStringFromDb'
+			, 'GenCsvFromAppStrings'
+			, 'LocalizeAppViaGcloud' 
+			, 'TranslateAppStringsFileViaGcloud'
+			, 'TranslateJsonRequestFileViaGcloud'
+			, 'UploadCsvToDb', 'SpecialTest' ],
  required= True)
 	parser.add_argument( '-c', '--connectString', help='Oracle connect string' )
 	parser.add_argument( '-f', '--deployFrom', help='parent of the temporary lproj folders' )
@@ -437,7 +443,12 @@ Note that we need to convert the placeholders {n\} back to its original %d or %s
 
 
 #################################################################################
-def translateForLanguages ( translationKeys, comments, requestFiles, gcloudOutputPaths, localizableStringsPaths ) :
+def translateForLanguages ( requestFiles, gcloudOutputPaths
+	, translationKeys = None
+	, comments = None
+	, localizableStringsPaths = None
+	, doIosStuff = True # parameter added later for more general use of method
+	 ) :
 	"""
 Given a list of json request files, gcloud output paths and paths of Localizable.strings
 (the path should be indicative of the target language e.g "de.DE/localizable.string"
@@ -464,28 +475,30 @@ Each json request file looks as follows:
 		callGcloudTranslate ( requestFilePath= requestFile, outputFilePath= gcloudOutputPath ) 
 		# convert and store
 		
-	# compute the list of formatters per translation key. do it once for all languages since the keys 
-	# should always be the same. We also pray that gcloud returns the translated order in the same order!
-	formattersList = [] # each list element is again a list
-	for key in translationKeys:
-		dummyText, formatters = parseKeyFromToGloud ( key )
-		formattersList.append( formatters )
-		
-	for ix, outputFile in enumerate( gcloudOutputPaths ):
-		# we may use either global list variable to derive the lang code. 
-		# But what if for some reason, the order is not consistent?
-		formatters= formattersList[ix]
-		targetLang= outputFile[-2:] # fixme: pray that lang code is always 2 in length
-		_dbx( outputFile )
-		_dbx( targetLang )
-		if True :
-			convertTranslationOutputToIosFormat ( targetLang= targetLang
-				, formattersList= formattersList
-				, translationResultPath= gcloudOutputPaths[ix]
-				, iosFilePath= localizableStringsPaths[ix] # based on index position!
-				, translationKeys = translationKeys 
-				, comments = comments 
-				)
+	if doIosStuff: 
+		_dbx( "Performing special processing for IOS app strings file" )
+		# compute the list of formatters per translation key. do it once for all languages since the keys 
+		# should always be the same. We also pray that gcloud returns the translated order in the same order!
+		formattersList = [] # each list element is again a list
+		for key in translationKeys:
+			dummyText, formatters = parseKeyFromToGloud ( key )
+			formattersList.append( formatters )
+			
+		for ix, outputFile in enumerate( gcloudOutputPaths ):
+			# we may use either global list variable to derive the lang code. 
+			# But what if for some reason, the order is not consistent?
+			formatters= formattersList[ix]
+			targetLang= outputFile[-2:] # fixme: pray that lang code is always 2 in length
+			_dbx( outputFile )
+			_dbx( targetLang )
+			if True :
+				convertTranslationOutputToIosFormat ( targetLang= targetLang
+					, formattersList= formattersList
+					, translationResultPath= gcloudOutputPaths[ix]
+					, iosFilePath= localizableStringsPaths[ix] # based on index position!
+					, translationKeys = translationKeys 
+					, comments = comments 
+					)
 
 #################################################################################
 def acquireAndStoreGToken():
@@ -741,7 +754,7 @@ This method has 2 use cases:
 	return newText, formatters
 
 #################################################################################
-def actionTranslateAppStringsFileViaGcloud ( appStringsFile, targetLangs, lProjDirNames ):
+def actionTranslateJsonRequestFileViaGcloud ( jsonRequestFile, targetLangs ):
 	"""
 For a request file with these data:
 {
@@ -751,7 +764,7 @@ For a request file with these data:
   'target': 'de',
   'format': 'text'
 }
-
+:
 We should get back:
 {
   "data": {
@@ -765,7 +778,66 @@ We should get back:
     ]
   }
 }
+
+!!! input language is assumed to be English! But we need to iterate over the target languages for 'target' and replace
+the value since gcloud cannot handle multiple target lang in one request.
+
+When got output files, we simply print the path of the output file 
+
 	"""
+
+	jsonTemplate = """
+{leftScurly} 
+  {qListAsText}
+ ,'source': {sourceLang}
+ ,'target': {targetLang}
+ ,'format': 'text'
+{rightScurly}
+"""
+	# _errorExit( jsonRequestFile )
+	workFolder= tempfile.mkdtemp()
+	_infoTs( "Work folder set to: '%s'" % workFolder )
+
+	# generate request files, one per target language
+	_infoTs( "Preparing translation query files for target languages: %s" % "; ".join( targetLangs ) )
+	requestFilePaths = []
+	with open( jsonRequestFile, "r" ) as originRequestFile :
+		jsonData = json.load( originRequestFile )
+		# it only make sense to continue if the text file is indeed json	
+		for targetLang in targetLangs:
+			requestFilePath =  os.path.join( workFolder, "translation__Input.json." + targetLang )
+			jsonData["target"] = targetLang
+			with open ( requestFilePath, "w" ) as newRequestFile:
+				_dbx( "writing to '%s'.." % requestFilePath )
+				json.dump( jsonData, newRequestFile )
+			requestFilePaths.append( requestFilePath )
+
+	# compile transation result file paths
+	gcloudOutputPaths= []
+	for targetLang in targetLangs:
+		gcloudOutputPath =  os.path.join( workFolder, "translate__Output.json." + targetLang )
+		gcloudOutputPaths.append( gcloudOutputPath )
+	_dbx( gcloudOutputPaths )
+
+	translateForLanguages( requestFiles= requestFilePaths
+		, gcloudOutputPaths= gcloudOutputPaths
+		, doIosStuff = False ) 
+
+	_infoTs("Next Step: Assuming we have only one q item in the input, let concatinate the output of several langs into one file" )
+	
+
+#################################################################################
+def actionTranslateAppStringsFileViaGcloud ( appStringsFile, targetLangs, lProjDirNames ):
+	"""
+For explanation on json request input and output file format, see factionTranslateJsonRequestFileViaGcloud()
+
+Here we 
+1. convert the strings file to the gcloud input format for the given target languages
+2. convert the output to files within the given directories
+
+We also take care of special considerations regarding placeholders in the original text
+	"""
+
 	workFolder= tempfile.mkdtemp()
 	_infoTs( "Work folder set to: '%s'" % workFolder )
 	_infoTs( "App strings file set to: '%s'" % appStringsFile )
@@ -792,7 +864,6 @@ We should get back:
 {rightScurly}
 """
 	_infoTs( "Preparing translation query files for target languages: %s" % "; ".join( targetLangs ) )
-
 	for targetLang in targetLangs:
 		jsonText = jsonTemplate.format( qListAsText= qListAsText
 			, targetLang= singleQuote( targetLang )
@@ -800,9 +871,8 @@ We should get back:
 			, rightScurly= r"}"
 			, sourceLang= r"'en'"
 		)
-		requestFilePath =  os.path.join( workFolder, "translationResult.json." + targetLang )
+		requestFilePath =  os.path.join( workFolder, "translationInput.json." + targetLang )
 		requestFilePaths.append( requestFilePath )
-		# _dbx( "writing to '%s'.." % requestFilePath )
 		oFile = open( requestFilePath, 'w' )
 		oFile.write( jsonText )
 		oFile.close()
@@ -812,7 +882,7 @@ We should get back:
 	# compile transation result file paths
 	gcloudOutputPaths= []
 	for targetLang in targetLangs:
-		gcloudOutputPath =  os.path.join( workFolder, "translateRequest.json." + targetLang )
+		gcloudOutputPath =  os.path.join( workFolder, "translateOutput.json." + targetLang )
 		gcloudOutputPaths.append( gcloudOutputPath )
 
 	# compile iOS  strings file paths
@@ -1084,6 +1154,9 @@ def main():
 			, outputFile = argObject.outputCsv )
 	elif argObject.action == 'LocalizeAppViaGcloud':
 		actionLocalizeAppViaGcloud( projectFolder = argObject.xcodeProjectFolder )
+	elif argObject.action == 'TranslateJsonRequestFileViaGcloud':
+		actionTranslateJsonRequestFileViaGcloud( jsonRequestFile = argObject.jsonRequestFile
+			, targetLangs = g_defaultTargetLangs )  #fixme: derive from command line arguments!
 	elif argObject.action == 'TranslateAppStringsFileViaGcloud':
 		actionTranslateAppStringsFileViaGcloud( appStringsFile = argObject.appStringsFile
 			, targetLangs = g_defaultTargetLangs ) #fixme: derive langs from app folder structure!

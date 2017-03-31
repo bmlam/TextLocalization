@@ -12,3 +12,6 @@ curl -s -k -H 'Content-Type: application/json'  \
 
 # essential to say ManyTimes/ManyTimes so the test target is skipped as deploy target!!!
 ./localizeText.py -a DeployIosFilesToAppProject -f bla -x /Users/bmlam/Dropbox/my-apps/ManyTimes/ManyTimes  
+
+# used during extension of script for action TranslateJsonRequestFile the output is as it comes from gcloud
+./localizeText.py -a TranslateJsonRequestFileViaGcloud --jsonRequestFile ./testText.json
