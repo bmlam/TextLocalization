@@ -14,4 +14,4 @@ curl -s -k -H 'Content-Type: application/json'  \
 ./localizeText.py -a DeployIosFilesToAppProject -f bla -x /Users/bmlam/Dropbox/my-apps/ManyTimes/ManyTimes  
 
 # used during extension of script for action TranslateJsonRequestFile the output is as it comes from gcloud
-./localizeText.py -a TranslateJsonRequestFileViaGcloud --jsonRequestFile ./testText.json
+./localizeText.py -a TranslateJsonRequestFileViaGcloud --jsonRequestFile ./ManyTimes_UseCase.json

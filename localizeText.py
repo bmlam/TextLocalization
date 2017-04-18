@@ -115,7 +115,7 @@ g_gTokenEnvVarName='GCLOUD_TOKEN'
 
 g_defaultAppStringsFile= 'Localizable.strings'
 g_defaultGcloudRequestFile= 'translateRequest.json'
-g_defaultTargetLangs = ['zh', 'it' ]
+g_defaultTargetLangs = [ 'de', 'es' ,'fr', 'it', 'zh' ]
 g_supportedStringFiles =	[ 'Localizable.strings', 'Table.strings' ]
 g_dbxCnt = 0
 g_maxDbxMsg = 5000
@@ -808,23 +808,74 @@ When got output files, we simply print the path of the output file
 			requestFilePath =  os.path.join( workFolder, "translation__Input.json." + targetLang )
 			jsonData["target"] = targetLang
 			with open ( requestFilePath, "w" ) as newRequestFile:
-				_dbx( "writing to '%s'.." % requestFilePath )
+				# _dbx( "writing to '%s'.." % requestFilePath )
 				json.dump( jsonData, newRequestFile )
 			requestFilePaths.append( requestFilePath )
 
 	# compile transation result file paths
 	gcloudOutputPaths= []
+	dictForConcat = {}
 	for targetLang in targetLangs:
 		gcloudOutputPath =  os.path.join( workFolder, "translate__Output.json." + targetLang )
 		gcloudOutputPaths.append( gcloudOutputPath )
+		#
+		dictForConcat[ targetLang ] = gcloudOutputPath 
 	_dbx( gcloudOutputPaths )
 
 	translateForLanguages( requestFiles= requestFilePaths
 		, gcloudOutputPaths= gcloudOutputPaths
 		, doIosStuff = False ) 
 
-	_infoTs("Next Step: Assuming we have only one q item in the input, let concatinate the output of several langs into one file" )
+	# _infoTs("Next Step: Assuming we have only one q item in the input, let concatinate the output of several langs into one file" )
+	concatHtmlFile = concatinateTranslatedJsonFiles( translatedFileMap= dictForConcat, presentation= 'txt' )
+	_infoTs( "Translated texts concatinated to %s" % concatHtmlFile )
+
+#################################################################################
+def concatinateTranslatedJsonFiles( translatedFileMap, presentation = 'html' ):
+	"""
+We got as input a dictionary where the key is lang and the value is the file path of the
+translated file from gcloud. We will concatinate the texts of the different
+target languages into a single text file. If presentation is html, each text is
+wrapped in html p tag and preceded with h2 tag indicating the target language	
+
+encoding issues still not solved with HTML!
+	"""
 	
+	htmlDoc = """<html>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+<body>
+{translatedTexts}
+</body>
+</html>
+"""
+	if presentation == 'html' or presentation == 'txt':
+		outputPath = os.path.join( g_workRoot, "concatTranslation_%s.%s" % ( "varyMe", presentation ) )
+	else:
+		_errorExit( "presentation %s is invalid" )
+
+	translatedSections = []
+	for targetLang, filePath in translatedFileMap.iteritems( ):
+		# _dbx( filePath )
+		with codecs.open( filePath, "r", encoding = "utf-8" ) as jsonFH :
+			jsonData = json.load( jsonFH )
+			dataRoot = jsonData["data"] 
+			translatedTextRecord = dataRoot["translations"] 
+			# _dbx( translatedText )
+			if presentation == 'html':
+				translatedSections.append(  "<h2>%s</h2> <p>%s</p>" % ( targetLang, translatedTextRecord ) )
+			elif presentation == 'txt':
+				translatedSections.append(  "\n%s\n\n%s" % ( targetLang, translatedTextRecord ) )
+
+	if presentation == 'html':
+		htmlDoc = htmlDoc.format( translatedTexts= "\n".join( hmtlTranslatedSections ) )
+		with codecs.open( outputPath, "w", encoding = "utf-8" ) as htmlFH:
+			htmlFH.write( htmlDoc )
+			return outputPath
+	elif presentation == 'txt':
+		txtDoc = "\n".join( translatedSections )
+		with codecs.open( outputPath, "w", encoding = "utf-8" ) as txtFH:
+			txtFH.write( txtDoc )
+			return outputPath
 
 #################################################################################
 def actionTranslateAppStringsFileViaGcloud ( appStringsFile, targetLangs, lProjDirNames ):
@@ -1044,9 +1095,7 @@ def actionLocalizeAppViaGcloud ( projectFolder ):
 		
 	tempDir= tempfile.mkdtemp()
 	tempDirBaseName= os.path.basename( tempDir )
-	workRoot = os.path.join( g_homeDir, 'TextLocalization_TEMP_ROOT' )
-	if not os.path.exists( workRoot ): os.makedirs( workRoot )
-	saveDir= os.path.join( workRoot, tempDirBaseName )
+	saveDir= os.path.join( g_workRoot, tempDirBaseName )
 	# _dbx( "; ".join( sourceCodeFiles ) )
 	_dbx( tempDir )
 	_dbx( saveDir )
@@ -1118,9 +1167,9 @@ the reverse conversion will be performed (as of 2017.01.02 not implemented)
 	# create a backup directory to put the original UTF-16 encoded files
 	tempDir= tempfile.mkdtemp()
 	tempDirBaseName= os.path.basename( tempDir )
-	workRoot = os.path.join( g_homeDir, 'TextLocalization_TEMP_ROOT' )
-	if not os.path.exists( workRoot ): os.makedirs( workRoot )
-	backupDir= os.path.join( workRoot, tempDirBaseName )
+	g_workRoot = os.path.join( g_homeDir, 'TextLocalization_TEMP_ROOT' )
+	if not os.path.exists( g_workRoot ): os.makedirs( g_workRoot )
+	backupDir= os.path.join( g_workRoot, tempDirBaseName )
 	os.rename( tempDir, backupDir )
 
 	for baseName in g_supportedStringFiles: 
@@ -1142,9 +1191,17 @@ def actionSpecialTest():
 		] :
 		do16To8ConversionForFolder( path )
 
+def setup():
+	global g_workRoot
+	g_workRoot = os.path.join( g_homeDir, 'TextLocalization_TEMP_ROOT' )
+	if not os.path.exists( g_workRoot ): os.makedirs( g_workRoot )
+
 #################################################################################
 def main():
 	argObject= parseCmdLine()
+
+	setup()
+
 	# _errorExit( "What does a translation output with path /var/folders/kn/wnll0h5979lg2kj84_zb0xsc0000gn/T/tmpZsLO8M/zh-Hans.lproj/Localizable.strings contains Spanish?" )
 	if argObject.action == 'DeployIosFilesToAppProject':
 		actionDeployIosFilesToAppProject( iosFilesTempRoot= argObject.deployFrom
