@@ -115,7 +115,8 @@ g_gTokenEnvVarName='GCLOUD_TOKEN'
 
 g_defaultAppStringsFile= 'Localizable.strings'
 g_defaultGcloudRequestFile= 'translateRequest.json'
-g_defaultTargetLangs = [ 'de', 'es' ,'fr', 'it', 'zh' ]
+#g_defaultTargetLangs = [ 'de', 'es' ,'fr', 'it', 'zh' ]
+g_defaultTargetLangs = [ 'de', 'it' ]
 g_supportedStringFiles =	[ 'Localizable.strings', 'Table.strings' ]
 g_dbxCnt = 0
 g_maxDbxMsg = 5000
@@ -154,10 +155,10 @@ def parseCmdLine() :
 			, 'DownloadAppStringFromDb'
 			, 'GenCsvFromAppStrings'
 			, 'LocalizeAppViaGcloud' 
-			, 'TranslateAppStringsFileViaGcloud'
 			, 'TranslateJsonRequestFileViaGcloud'
 			, 'UploadCsvToDb', 'SpecialTest' ],
- required= True)
+			 required= True)
+#action not fully implemented		, 'TranslateAppStringsFileViaGcloud'
 	parser.add_argument( '-c', '--connectString', help='Oracle connect string' )
 	parser.add_argument( '-f', '--deployFrom', help='parent of the temporary lproj folders' )
 	parser.add_argument( '-n', '--appName')
@@ -509,7 +510,7 @@ def acquireAndStoreGToken():
 request another auth-token and store it in the env var
 	"""
 
-	cmdArgs = ['/usr/local/google-cloud-sdk/bin/gcloud/bin/gcloud'
+	cmdArgs = ['/usr/local/google-cloud-sdk/bin/gcloud'
 		, 'auth'
 		, 'print-access-token'
 		] 
@@ -885,17 +886,18 @@ encoding issues still not solved with HTML!
 			txtFH.write( txtDoc )
 			return outputPath
 
+
 #################################################################################
 def actionTranslateAppStringsFileViaGcloud ( appStringsFile, targetLangs, lProjDirNames ):
 	"""
-For explanation on json request input and output file format, see factionTranslateJsonRequestFileViaGcloud()
-
-Here we 
-1. convert the strings file to the gcloud input format for the given target languages
-2. convert the output to files within the given directories
-
-We also take care of special considerations regarding placeholders in the original text
-	"""
+		For explanation on json request input and output file format, see actionTranslateJsonRequestFileViaGcloud()
+		
+		Here we
+		1. convert the strings file to the gcloud input format for the given target languages
+		2. convert the output to files within the given directories
+		
+		We also take care of special considerations regarding placeholders in the original text
+		"""
 
 	workFolder= tempfile.mkdtemp()
 	_infoTs( "Work folder set to: '%s'" % workFolder )
@@ -938,6 +940,8 @@ We also take care of special considerations regarding placeholders in the origin
 
 	_dbx( targetLangs )
 	_dbx( requestFilePaths )
+
+#	_errorExit( "testExit" )
 	# compile transation result file paths
 	gcloudOutputPaths= []
 	for targetLang in targetLangs:
@@ -1222,9 +1226,9 @@ def main():
 	elif argObject.action == 'TranslateJsonRequestFileViaGcloud':
 		actionTranslateJsonRequestFileViaGcloud( jsonRequestFile = argObject.jsonRequestFile
 			, targetLangs = g_defaultTargetLangs )  #fixme: derive from command line arguments!
-	elif argObject.action == 'TranslateAppStringsFileViaGcloud':
-		actionTranslateAppStringsFileViaGcloud( appStringsFile = argObject.appStringsFile
-			, targetLangs = g_defaultTargetLangs ) #fixme: derive langs from app folder structure!
+#	elif argObject.action == 'TranslateAppStringsFileViaGcloud':
+#		actionTranslateAppStringsFileViaGcloud( appStringsFile = argObject.appStringsFile
+#			, targetLangs = g_defaultTargetLangs ) #fixme: derive langs from app folder structure!
 	elif argObject.action == 'SpecialTest':
 		actionSpecialTest()
 	else:

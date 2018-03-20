@@ -6,7 +6,7 @@ curl -s -k -H 'Content-Type: application/json'  \
      -d "@$REQUEST_FILE"
 
 # generate/populate Localizable.string 
-./localizeText.py -a GenCsvFromAppStrings -n AlpsHiker -x  /Users/bmlam/Dropbox/my-apps/AlpsHiker/AlpsHiker  --outputCsv /tmp/for_gcloud.csv
+./localizeText.py -a GenCsvFromAppStrings -n AlpsHiker -x  /Users/bmlam/Dropbox/my-apps/AlpsHiker/AlpsHiker  --outputCsv /Users/bmlam/Dropbox/my-apps/AlpsHiker/AlpsHiker/en.lproj/Localizable.strings
 
 
 # --appStringsFile /Users/bmlam/Dropbox/my-apps/AlpsHiker/AlpsHiker/en.lproj/Localizable.strings 
