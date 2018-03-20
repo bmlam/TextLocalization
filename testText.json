@@ -2,9 +2,5 @@
   "q": "If you need to start several timers simultaneously, For example you start cooking spaghetti which should last 10 minutes, and in half an hour, you need to remove the cake from stove. Then this app is for you. Optionally Add some fun by using sounds recorded by yourself as alert tunes.",
   "source": "en",
   "target": "de",
-  "target": "es",
-  "target": "fr",
-  "target": "it",
-  "target": "zh-Hans",
   "format": "text"
 }

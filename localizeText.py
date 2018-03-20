@@ -358,17 +358,20 @@ def convertCsvToIosFileTree ( jsonPath ):
 def grepRelevantSourceFiles ( appFolder ):
 	"""
 	"""
-	paths = []
+	retval_files = []
+	_dbx( "appFolder: %s" % appFolder )
 
 	for dirPath, subdirs, fileNodes in os.walk ( appFolder ):
 		for fileNode in fileNodes:
 			namePrefix, nameSuffix= os.path.splitext( fileNode )
-			# list relevant fileNode extensions here 	
-			if nameSuffix in ( 'swift', 'm'):
+			#_dbx( "nameSuffix: %s" % nameSuffix )
+			# list relevant fileNode extensions here
+			if nameSuffix in ( '.swift', '.m'):
 				_dbx( "fileNode: %s" % fileNode )
 				_dbx( "dirPath: %s" % dirPath )
 				retval_files.append( os.path.join(dirPath, fileNode) ) 
-	return paths
+	_dbx( "retval_files: %d" % len( retval_files ) )
+	return retval_files
 
 #################################################################################
 def convertTranslationOutputToIosFormat ( targetLang, translationKeys, comments, formattersList, translationResultPath, iosFilePath ) :
@@ -506,7 +509,7 @@ def acquireAndStoreGToken():
 request another auth-token and store it in the env var
 	"""
 
-	cmdArgs = ['gcloud'
+	cmdArgs = ['/usr/local/google-cloud-sdk/bin/gcloud/bin/gcloud'
 		, 'auth'
 		, 'print-access-token'
 		] 
@@ -600,18 +603,19 @@ def callGenstrings ( relevantFiles, outputDir ) :
 		_errorExit( "Aborted due to previous errors" )
 
 	appMasterStringFile= os.path.join( outputDir, g_defaultAppStringsFile )
+	_dbx( appMasterStringFile )
 	return appMasterStringFile
 
 #################################################################################
-def actionGenCsvFromAppStrings( appFolderPath, outputFile , forAllLang = False ):
-	"""The encoding of the input file is currently hardcoded! Look for codecs
-This script select all the files named "Localizable.string" under the current file tree and perform the following operations
+def actionGenCsvFromAppStrings( appFolderPath, outputFile ):
+	"""
+This method select all the source code files under the project tree and perform applies genstring against each.
 * Remember the folder name of the selected file - obviously the file only exists once in each folder.
 * One of the string file is the master. By default it is under the en.lproj folder
 * Assemble one record from several lines of the input file. Each record has this fields:
 	** Key
-	** Langulage which is derived from the containing folder
-	** Territory which is derived from the containing folder
+	** Langulage which is derived from the containing folder: Do we need this in CSV? gcloud needs JSON?
+	** Territory which is derived from the containing folder. Do we need this?
 	** Localized version. For the master file, it is identical to the key
 	** Translator hints, but only for the master file
 	
@@ -624,27 +628,31 @@ If the Localizable.strings file is in utf-8 format, convert it to utf16 with BOM
 mv Localizable.strings Localizable.strings.org; iconv -f utf-8 -t UTF-16 Localizable.strings.org > Localizable.strings
 	"""
 
-	info("Concat target file is %s" % outputFile)
+	_infoTs("Concat target file is %s" % outputFile)
 
-	relevantFiles = grepRelevantSourceFiles( appFolderPath )
-	if relevantFiles.count == 0:
-		_errorExit( "No relevant source files found!" )
-
+	sourceCodeFiles = grepRelevantSourceFiles( appFolderPath )
+	if len( sourceCodeFiles ) == 0:
+		_errorExit( "No source files containing candidates for genstrings have been found!" )
+#	for relevantFile in relevantFiles:		_dbx( relevantFile )
 	tempDir = tempfile.mkdtemp()
-	info( "Strings file will be found in %s" % tempDir )
+	_infoTs( "Strings file will be found in %s" % tempDir )
 
-	callGenstrings( relevantFiles, tempDir )
+	genstringOutFile = callGenstrings( sourceCodeFiles, tempDir )
 
-	out_fh = codecs.open( outputFile, "w", encoding='utf-16' )
-	for ix in range (len ( localizableFiles ) ):
-		source_path_complete= os.path.join(source_root, localizableFiles[ix] )
-		debug("source_path_complete: %s" % source_path_complete)
-		lang_code= getLangFromFolderName( strings_file_folders[ix] )
-		
-		# out_fh.write("\n... Content of file \"%s\"\n\n" % (source_path_complete) )
-		processIosLocalizableFile (p_source_file= source_path_complete, p_target_handle= out_fh, p_language= lang_code, p_territory=None, p_is_master=1)
-		# appendTextFileToFileHandle (p_source_file=source_path_complete , p_target_handle= out_fh)
-	out_fh.close()
+#	_errorExit( "testExit" )
+#	out_fh = codecs.open( outputFile, "w", encoding='utf-8' )
+#	for ix in range (len ( relevantFiles ) ):
+##		_dbx( relevantFiles[ix] )
+#		if True:
+#			#source_path_complete= os.path.join(source_root, localizableFiles[ix] )
+#			source_path_complete=  relevantFiles[ix]
+#			debug("source_path_complete: %s" % source_path_complete)
+#			lang_code= getLangFromFolderName( strings_file_folders[ix] )
+#
+#			# out_fh.write("\n... Content of file \"%s\"\n\n" % (source_path_complete) )
+#			processIosLocalizableFile (p_source_file= source_path_complete, p_target_handle= out_fh, p_language= lang_code, p_territory=None, p_is_master=1)
+#			# appendTextFileToFileHandle (p_source_file=source_path_complete , p_target_handle= out_fh)
+#	out_fh.close()
 
 #################################################################################
 def actionUploadCsvToDb ( csvPath, targetSchema, targetTable ):
@@ -903,7 +911,7 @@ We also take care of special considerations regarding placeholders in the origin
 	# for key in translationKeys:
 	for key in translationKeys :
 		newKey, dummy = parseKeyFromToGloud ( key )
-		# _dbx( newKey )
+		_dbx( newKey )
 		formattedList.append( "'q': '%s'" % escapeQuote( newKey ) )
 	qListAsText = ",\n".join( formattedList )
 	jsonTemplate = """
